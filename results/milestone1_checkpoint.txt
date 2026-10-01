@@ -1,0 +1,323 @@
+COMMAND: python test.py
+
+AI201 environment check
+------------------------------------------------------------
+[PASS] Python version
+         3.13.15 on Windows
+[PASS] Virtual environment
+         D:\FAU\Session Fall 2026\AI201\Project02\ai201-project2-fitfindr-starter-v2026\.venv
+[PASS] Pinned packages
+         all 5 import cleanly
+[PASS] Free disk space
+         244.9 GB
+[PASS] Memory
+         31.9 GB
+[PASS] Key hygiene
+         .env is ignored by git
+[PASS] API key
+         loaded, 53 characters
+[PASS] MCP
+         server and client both import
+[PASS] Project data
+         40 listings, 10 wardrobe items
+[PASS] Model call
+         gemini-3.5-flash-lite replied "Ready."
+------------------------------------------------------------
+10 passed, 0 failed, 0 to look at, 0 skipped
+
+You're set. See you in class.
+
+
+COMMAND: python app.py fields
+A listing has these fields:
+
+  id             str    lst_001
+  title          str    Vintage Levi's 501 Jeans ΓÇö Medium Wash
+  description    str    Classic 501s in a perfect medium wash. Some light fading aΓÇª
+  category       str    bottoms
+  style_tags     list   ['vintage', 'classic', 'denim', 'streetwear']
+  size           str    W30 L30
+  condition      str    good
+  price          float  38.0
+  colors         list   ['blue', 'indigo']
+  brand          str    Levi's
+  platform       str    depop
+
+A wardrobe item has these fields:
+
+  id             str    w_001
+  name           str    Baggy straight-leg jeans, dark wash
+  category       str    bottoms
+  colors         list   ['dark blue', 'indigo']
+  style_tags     list   ['denim', 'streetwear', 'baggy']
+  notes          str    High-waisted, sits above the hip
+
+These are what search_listings can filter on. Read a few whole listings
+with `python app.py listings` before you write it.
+
+COMMAND: python app.py listings --full -n 6
+{
+  "id": "lst_001",
+  "title": "Vintage Levi's 501 Jeans \u2014 Medium Wash",
+  "description": "Classic 501s in a perfect medium wash. Some light fading at the knees which adds to the vintage look. No rips or stains.",
+  "category": "bottoms",
+  "style_tags": [
+    "vintage",
+    "classic",
+    "denim",
+    "streetwear"
+  ],
+  "size": "W30 L30",
+  "condition": "good",
+  "price": 38.0,
+  "colors": [
+    "blue",
+    "indigo"
+  ],
+  "brand": "Levi's",
+  "platform": "depop"
+}
+
+{
+  "id": "lst_002",
+  "title": "Y2K Baby Tee \u2014 Butterfly Print",
+  "description": "Super cute early 2000s baby tee with butterfly graphic. Fitted crop length. Tag says medium but fits like a small.",
+  "category": "tops",
+  "style_tags": [
+    "y2k",
+    "vintage",
+    "graphic tee",
+    "cottagecore"
+  ],
+  "size": "S/M",
+  "condition": "excellent",
+  "price": 18.0,
+  "colors": [
+    "white",
+    "pink",
+    "purple"
+  ],
+  "brand": null,
+  "platform": "depop"
+}
+
+{
+  "id": "lst_003",
+  "title": "Oversized Flannel Shirt \u2014 Plaid Red/Black",
+  "description": "Classic oversized flannel. Great layering piece. A few tiny pulls in the fabric but nothing visible when worn.",
+  "category": "tops",
+  "style_tags": [
+    "grunge",
+    "vintage",
+    "flannel",
+    "streetwear",
+    "layering"
+  ],
+  "size": "XL (oversized)",
+  "condition": "good",
+  "price": 22.0,
+  "colors": [
+    "red",
+    "black"
+  ],
+  "brand": "Woolrich",
+  "platform": "thredUp"
+}
+
+{
+  "id": "lst_004",
+  "title": "90s Track Jacket \u2014 Navy/White Stripe",
+  "description": "Authentic 90s track jacket with stripe detail down the sleeves. Full zip. Lightweight \u2014 great for layering.",
+  "category": "outerwear",
+  "style_tags": [
+    "90s",
+    "vintage",
+    "athletic",
+    "streetwear"
+  ],
+  "size": "M",
+  "condition": "excellent",
+  "price": 45.0,
+  "colors": [
+    "navy",
+    "white"
+  ],
+  "brand": "Champion",
+  "platform": "poshmark"
+}
+
+{
+  "id": "lst_005",
+  "title": "Corduroy Wide-Leg Pants \u2014 Rust",
+  "description": "Beautiful rust-colored cords in a wide-leg silhouette. High-waisted. Minor pilling on the seat but otherwise great condition.",
+  "category": "bottoms",
+  "style_tags": [
+    "vintage",
+    "cottagecore",
+    "70s",
+    "earth tones"
+  ],
+  "size": "W28",
+  "condition": "good",
+  "price": 32.0,
+  "colors": [
+    "rust",
+    "orange"
+  ],
+  "brand": null,
+  "platform": "depop"
+}
+
+{
+  "id": "lst_006",
+  "title": "Graphic Tee \u2014 2003 Tour Bootleg Style",
+  "description": "Vintage-style bootleg tee with faded graphic. Slightly boxy fit. 100% cotton, soft and worn-in.",
+  "category": "tops",
+  "style_tags": [
+    "graphic tee",
+    "vintage",
+    "grunge",
+    "streetwear",
+    "band tee"
+  ],
+  "size": "L",
+  "condition": "good",
+  "price": 24.0,
+  "colors": [
+    "black"
+  ],
+  "brand": null,
+  "platform": "depop"
+}
+
+
+FILE: data/wardrobe_schema.json
+{
+  "_description": "This file defines the wardrobe schema your agent will use. The 'example_wardrobe' shows a sample user's closet. Your suggest_outfit tool should accept a wardrobe in this format.",
+
+  "schema": {
+    "items": [
+      {
+        "id": "string — unique identifier for this item",
+        "name": "string — short description of the piece",
+        "category": "string — one of: tops, bottoms, outerwear, shoes, accessories",
+        "colors": ["string — list of colors this item contains"],
+        "style_tags": ["string — list of style descriptors"],
+        "notes": "string (optional) — any notes about fit, how the user styles it, etc."
+      }
+    ]
+  },
+
+  "example_wardrobe": {
+    "items": [
+      {
+        "id": "w_001",
+        "name": "Baggy straight-leg jeans, dark wash",
+        "category": "bottoms",
+        "colors": ["dark blue", "indigo"],
+        "style_tags": ["denim", "streetwear", "baggy"],
+        "notes": "High-waisted, sits above the hip"
+      },
+      {
+        "id": "w_002",
+        "name": "Wide-leg khaki trousers",
+        "category": "bottoms",
+        "colors": ["khaki", "tan"],
+        "style_tags": ["earth tones", "minimal", "wide-leg"],
+        "notes": null
+      },
+      {
+        "id": "w_003",
+        "name": "White ribbed tank top",
+        "category": "tops",
+        "colors": ["white"],
+        "style_tags": ["basics", "minimal", "fitted"],
+        "notes": "Goes with everything"
+      },
+      {
+        "id": "w_004",
+        "name": "Oversized grey crewneck sweatshirt",
+        "category": "tops",
+        "colors": ["grey", "charcoal"],
+        "style_tags": ["oversized", "basics", "cozy"],
+        "notes": "Really oversized — drops below the hip"
+      },
+      {
+        "id": "w_005",
+        "name": "Black cropped zip hoodie",
+        "category": "tops",
+        "colors": ["black"],
+        "style_tags": ["athletic", "streetwear", "cropped"],
+        "notes": null
+      },
+      {
+        "id": "w_006",
+        "name": "Vintage black denim jacket",
+        "category": "outerwear",
+        "colors": ["black"],
+        "style_tags": ["denim", "vintage", "classic"],
+        "notes": "Slightly cropped"
+      },
+      {
+        "id": "w_007",
+        "name": "Chunky white sneakers",
+        "category": "shoes",
+        "colors": ["white"],
+        "style_tags": ["sneakers", "chunky", "streetwear"],
+        "notes": null
+      },
+      {
+        "id": "w_008",
+        "name": "Black combat boots",
+        "category": "shoes",
+        "colors": ["black"],
+        "style_tags": ["boots", "grunge", "classic"],
+        "notes": "Lace-up, mid-ankle height"
+      },
+      {
+        "id": "w_009",
+        "name": "Brown leather belt",
+        "category": "accessories",
+        "colors": ["brown"],
+        "style_tags": ["classic", "earth tones", "accessories"],
+        "notes": null
+      },
+      {
+        "id": "w_010",
+        "name": "Black crossbody bag",
+        "category": "accessories",
+        "colors": ["black"],
+        "style_tags": ["minimal", "accessories", "everyday"],
+        "notes": null
+      }
+    ]
+  },
+
+  "empty_wardrobe": {
+    "_note": "Use this as the starting template for a new user with no wardrobe entered yet.",
+    "items": []
+  }
+}
+
+COMMAND: python app.py examples
+Queries worth trying:
+
+  python app.py ask 'vintage graphic tee under $30'
+  python app.py ask '90s track jacket in size M'
+  python app.py ask 'silk slip dress in midi length under $40'
+  python app.py ask 'platform sneakers size 8'
+  python app.py ask 'denim jacket under $50'
+
+And one the data cannot match ΓÇö this is the empty-search branch:
+
+  python app.py ask 'designer ballgown size XXS under $5'
+
+Single quotes on purpose. In PowerShell a query in "double quotes"
+loses the $30 ΓÇö it gets read as a variable ΓÇö and you search with no
+price ceiling, with nothing to tell you it happened.
+
+COMMAND: python app.py ask 'vintage graphic tee under $30'
+
+  The planning loop isn't built yet ΓÇö see the TODO in agent.py.
+
+0 model calls this session
