@@ -57,24 +57,24 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Loads the supplied listings, filters by optional size and price ceiling, and ranks matches by keyword overlap with the requested description.
+- **Inputs:** `description` (str), `size` (str or None, default None), `max_price` (float or None, default None).
+- **Returns:** A list of matching listing dictionaries containing `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`. Results have positive keyword scores, are ordered highest score first, and are limited by `config.SEARCH_RESULT_LIMIT`. Ties preserve dataset order.
+- **When it has nothing:** Returns `[]`.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Uses the model to suggest one or two outfits combining the selected listing with the user's wardrobe.
+- **Inputs:** `new_item` (dict containing a listing), `wardrobe` (dict whose `items` value is a list of wardrobe-item dictionaries).
+- **Returns:** A non-empty string describing outfit combinations and naming the wardrobe pieces used.
+- **When it has nothing:** If `wardrobe["items"]` is empty, returns general styling advice for the selected listing without claiming the user owns the suggested pieces.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Uses the model to turn an outfit suggestion and selected listing into a short social caption.
+- **Inputs:** `outfit` (str), `new_item` (dict containing a listing).
+- **Returns:** A two-to-four-sentence caption mentioning the item, its price, and its platform once each, with styling details based on the outfit suggestion.
+- **When it has nothing:** If `outfit` is empty or whitespace-only, returns `"Cannot create a fit card without an outfit suggestion."` without calling the model.
 
 ---
 
@@ -91,7 +91,12 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If `search_listings` returns `[]`, store a message in
+`session["error"]` asking the user to broaden the description, try another
+size, or increase the price ceiling, then return the session without calling
+`suggest_outfit` or `create_fit_card`. Otherwise, store the first result in
+`session["selected_item"]`, call `suggest_outfit`, and then call
+`create_fit_card`, saving each result in the session.
 
 **Where it lives:** `agent.py::run_agent`
 
