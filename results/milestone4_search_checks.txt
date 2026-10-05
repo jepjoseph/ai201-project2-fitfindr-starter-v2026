@@ -1,0 +1,7 @@
+PASS: non-empty search respects the price ceiling
+PASS: an item priced exactly at the ceiling is included
+PASS: M matches S/M
+PASS: L does not match XL
+PASS: S does not match US shoe sizes
+PASS: size 8 matches US 8 and excludes US 8.5
+PASS: impossible search returns []

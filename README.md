@@ -59,7 +59,7 @@
 
 - **What it does:** Loads the supplied listings, filters by optional size and price ceiling, and ranks matches by keyword overlap with the requested description.
 - **Inputs:** `description` (str), `size` (str or None, default None), `max_price` (float or None, default None).
-- **Returns:** A list of matching listing dictionaries containing `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`. Results have positive keyword scores, are ordered highest score first, and are limited by `config.SEARCH_RESULT_LIMIT`. Ties preserve dataset order.
+- **Returns:** A list of listing dictionaries containing `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`. Matches have positive keyword scores, are ranked highest first, and are limited by `config.SEARCH_RESULT_LIMIT`. Ties preserve dataset order.
 - **When it has nothing:** Returns `[]`.
 
 ### `suggest_outfit`
@@ -67,14 +67,14 @@
 - **What it does:** Uses the model to suggest one or two outfits combining the selected listing with the user's wardrobe.
 - **Inputs:** `new_item` (dict containing a listing), `wardrobe` (dict whose `items` value is a list of wardrobe-item dictionaries).
 - **Returns:** A non-empty string describing outfit combinations and naming the wardrobe pieces used.
-- **When it has nothing:** If `wardrobe["items"]` is empty, returns general styling advice for the selected listing without claiming the user owns the suggested pieces.
+- **When it has nothing:** If `wardrobe["items"]` is empty, returns general styling advice without claiming the user owns the suggested pieces. If the model returns empty text, raises `ValueError`.
 
 ### `create_fit_card`
 
 - **What it does:** Uses the model to turn an outfit suggestion and selected listing into a short social caption.
 - **Inputs:** `outfit` (str), `new_item` (dict containing a listing).
-- **Returns:** A two-to-four-sentence caption mentioning the item, its price, and its platform once each, with styling details based on the outfit suggestion.
-- **When it has nothing:** If `outfit` is empty or whitespace-only, returns `"Cannot create a fit card without an outfit suggestion."` without calling the model.
+- **Returns:** A caption string. The prompt requests two to four sentences, at most 80 words, mentioning the full item title, correct price, and platform once each, with styling details based on the outfit.
+- **When it has nothing:** If `outfit` is empty or whitespace-only, returns `"Cannot create a fit card without an outfit suggestion."` without calling the model. If the model returns empty text, raises `ValueError`.
 
 ---
 

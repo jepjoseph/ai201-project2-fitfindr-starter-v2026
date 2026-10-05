@@ -1,0 +1,17 @@
+
+=== Uncached caption 1 ===
+Style these classic blue denim bottoms with a simple white ribbed tank top and chunky white sneakers for an effortless streetwear look. Grab the Vintage Levi's 501 Jeans ΓÇö Medium Wash on depop for $38.00.
+Word count: 35
+
+=== Uncached caption 2 ===
+Rock these classic Vintage Levi's 501 Jeans ΓÇö Medium Wash with a white ribbed tank top and chunky white sneakers for an effortless streetwear look. Grab them now on depop for $38.00.
+Word count: 32
+
+=== Uncached caption 3 ===
+Score classic style with these Vintage Levi's 501 Jeans ΓÇö Medium Wash. Styled here with a white ribbed tank top and chunky white sneakers for an effortless streetwear look. Available now on depop for $38.00.
+Word count: 35
+
+=== Empty outfit ===
+Cannot create a fit card without an outfit suggestion.
+
+3 model calls this session, 798 prompt + 142 output tokens
