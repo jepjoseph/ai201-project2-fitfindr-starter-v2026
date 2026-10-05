@@ -13,8 +13,7 @@
 > python app.py ask 'vintage graphic tee under $30'
 > ```
 >
-> All three tools are stubs, so that last command will do nothing useful yet.
-> That's the starting position.
+> The three tools and planning loop are implemented.
 >
 > **The rest of this file is your submission.** Fill it in as you go.
 
@@ -40,6 +39,12 @@
 ## What This Does
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
+
+FitFindr is a command-line agent that helps users explore 40 supplied mock
+thrift listings. A user describes an item and can specify a size and a price
+ceiling. The agent selects the highest-ranked search result, suggests outfits
+using the supplied wardrobe, and writes a short caption. If no listings
+match, it stops and suggests changing the description, size, or budget.
 
 ---
 
@@ -152,8 +157,6 @@ starter accepted this query and reported that its planning loop was not built:
 
 **One full query**
 
-**One full query**
-
 ```text
 > python app.py ask 'vintage graphic tee under $30'
 
@@ -189,35 +192,68 @@ starter accepted this query and reported that its planning loop was not built:
 Both CLI runs exited with code 0. These are build checks, not the five-trial
 acceptance evaluation.
 
-The outfit output refers to high-waisted denim, but the selected jeans'
-wardrobe record says this. The caption carries that styling detail forward.
+The high-waisted denim detail comes from wardrobe item `w_001`'s notes.
+The caption carries that styling detail forward.
 
 Saved output:
 
 - [Matching query](results/milestone5_happy_output.txt)
 - [Empty search](results/milestone5_empty_output.txt)
 
-```
-
 **The three tools, tested one at a time**
 
-```
+```text
 
 $ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
 
-```
+[{'id': 'lst_002', 'title': 'Y2K Baby Tee ΓÇö Butterfly Print', 'description': 'Super cute early 2000s baby tee with butterfly graphic. Fitted crop length. Tag says medium but fits like a small.', 'category': 'tops', 'style_tags': ['y2k', 'vintage', 'graphic tee', 'cottagecore'], 'size': 'S/M', 'condition': 'excellent', 'price': 18.0, 'colors': ['white', 'pink', 'purple'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_006', 'title': 'Graphic Tee ΓÇö 2003 Tour Bootleg Style', 'description': 'Vintage-style bootleg tee with faded graphic. Slightly boxy fit. 100% cotton, soft and worn-in.', 'category': 'tops', 'style_tags': ['graphic tee', 'vintage', 'grunge', 'streetwear', 'band tee'], 'size': 'L', 'condition': 'good', 'price': 24.0, 'colors': ['black'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_017', 'title': 'Mesh Long-Sleeve Top ΓÇö Black', 'description': 'Sheer black mesh long-sleeve. Great for layering under a graphic tee or over a bralette. Stretchy material, fits true to size.', 'category': 'tops', 'style_tags': ['y2k', 'grunge', 'goth', 'layering'], 'size': 'S/M', 'condition': 'excellent', 'price': 15.0, 'colors': ['black'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_033', 'title': 'Vintage Band Tee ΓÇö Faded Grey', 'description': 'Faded grey band-style tee with distressed graphic. Crew neck. Fits boxy. Well-loved but no holes or major damage.', 'category': 'tops', 'style_tags': ['vintage', 'grunge', 'band tee', 'graphic tee', 'streetwear'], 'size': 'L', 'condition': 'fair', 'price': 19.0, 'colors': ['grey', 'charcoal'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_011', 'title': 'Low-Rise Cargo Pants ΓÇö Khaki', 'description': 'Y2K era low-rise cargo pants. Lots of pockets. Khaki color, slightly distressed at the hems. Great for layering with a long tee.', 'category': 'bottoms', 'style_tags': ['y2k', 'cargo', '2000s', 'streetwear'], 'size': 'W29', 'condition': 'fair', 'price': 27.0, 'colors': ['khaki', 'tan'], 'brand': None, 'platform': 'poshmark'}, {'id': 'lst_015', 'title': 'Vintage Graphic Hoodie ΓÇö Faded Black', 'description': 'Faded black pullover hoodie with barely-visible vintage graphic on the chest. Cozy interior. Some pilling but adds to the worn-in look.', 'category': 'tops', 'style_tags': ['vintage', 'grunge', 'graphic', 'streetwear'], 'size': 'L', 'condition': 'fair', 'price': 26.0, 'colors': ['black', 'charcoal'], 'brand': None, 'platform': 'depop'}]
 
 ```
 
-$ python -c "from tools import suggest_outfit; ..."
+```text
+
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+
+Here are two outfit combinations using the new Levi's 501 Jeans and pieces from your wardrobe:
+
+**Outfit 1: Casual Streetwear**
+*   **New Item:** Vintage Levi's 501 Jeans (Medium Wash)
+*   **Wardrobe Pieces:** White ribbed tank top, Chunky white sneakers, Black crossbody bag
+
+**Outfit 2: Cozy & Relaxed**
+*   **New Item:** Vintage Levi's 501 Jeans (Medium Wash)
+*   **Wardrobe Pieces:** Oversized grey crewneck sweatshirt, Chunky white sneakers
 
 ```
 
+```text
+
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+
+Grab these classic blues styled with crisp white sneakers for an effortless streetwear look. Find Vintage Levi's 501 Jeans ΓÇö Medium Wash available now on depop for $38.00.
+
 ```
 
-$ python -c "from tools import create_fit_card; ..."
+The output above preserves the original captured logs, including an encoding
+issue that displayed an em dash as `ΓÇö`. Later full-agent logs were written
+directly as UTF-8 and display the character correctly.
 
-```
+The search returned six listings. All seven filter checks passed.
+Keyword overlap also returned items that mention tees without being tees;
+this remains a limitation of the search.
+
+The empty-wardrobe test returned general advice without claiming the user
+owned the suggested pieces. Three uncached caption calls produced different
+outputs containing 35, 32, and 35 words. A whitespace-only outfit returned
+"Cannot create a fit card without an outfit suggestion."
+
+These are build checks, not the five-trial Unit 4 acceptance evaluation.
+
+Additional output:
+
+- [Search checks](results/milestone4_search_checks.txt)
+- [Empty wardrobe](results/milestone4_empty_wardrobe_output.txt)
+- [Caption variation and empty-input checks](results/milestone4_fit_card_checks.txt)
 
 ---
 
@@ -232,15 +268,15 @@ $ python -c "from tools import create_fit_card; ..."
 
 **Moment 1**
 
-- _What I asked for:_
-- _What came back:_
-- _What I changed:_
+- **What I asked for:** Help implementing and testing `search_listings` against my tool specification.
+- **What came back:** A keyword-overlap search with an inclusive price ceiling and complete size-token matching, plus checks for cases such as `M` matching `S/M` and `L` not matching `XL`.
+- **What I changed:** I replaced the search stub in `tools.py`, ran the checks, and recorded the output under `results`. All seven checks passed, although the search also returned items that merely mentioned tees.
 
 **Moment 2**
 
-- _What I asked for:_
-- _What came back:_
-- _What I changed:_
+- **What I asked for:** Help fixing an `IndentationError` after adding the outfit tool.
+- **What came back:** A complete `suggest_outfit` function with consistent indentation and a syntax-check command.
+- **What I changed:** I corrected the indentation in `tools.py` and reran the populated-wardrobe and empty-wardrobe tests. Both returned suggestions, and the empty case clearly described companion pieces as ideas rather than owned items.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
@@ -409,4 +445,3 @@ full. -->
 ---
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
-```
