@@ -91,18 +91,35 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:** If `search_listings` returns `[]`, store a message in
-`session["error"]` asking the user to broaden the description, try another
-size, or increase the price ceiling, then return the session without calling
-`suggest_outfit` or `create_fit_card`. Otherwise, store the first result in
-`session["selected_item"]`, call `suggest_outfit`, and then call
-`create_fit_card`, saving each result in the session.
+**Branch rule:** If `search_listings` returns `[]`, store an actionable
+message in `session["error"]` and return without calling `suggest_outfit`
+or `create_fit_card`. Otherwise, select the first result, generate outfit
+suggestions, and create a fit card.
 
-**Where it lives:** `agent.py::run_agent`
+**Where it lives:** `agent.py::run_agent`.
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Regular expressions extract an optional
+`under $amount` price ceiling and an explicit `size` value. The parser removes
+these constraints and some introductory words from the description.
+Supported sizes include `M`, `S/M`, `8`, `US 8`, and `W30 L30`.
+Other natural-language phrasing may not parse correctly.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** The query and wardrobe initialize the
+session. Parsed constraints go into `parsed`; search output goes into
+`search_results`; the first result becomes `selected_item`.
+`suggest_outfit` reads `selected_item` and `wardrobe`, and its output becomes
+`outfit_suggestion`. `create_fit_card` reads that suggestion and the selected
+item, storing its output in `fit_card`.
+
+The loop checks `trace.check_iterations` on every iteration to enforce
+`config.MAX_ITERATIONS`.
+
+A build check captured a copy of the item passed to `suggest_outfit` and
+confirmed it matched `session["selected_item"]`. The empty-search check
+confirmed that neither later tool was called and their session fields
+remained `None`.
+
+[Full session-check output](results/milestone5_session_checks.txt)
 
 ---
 
@@ -135,24 +152,69 @@ starter accepted this query and reported that its planning loop was not built:
 
 **One full query**
 
+**One full query**
+
+```text
+> python app.py ask 'vintage graphic tee under $30'
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Here are two outfit ideas combining the Y2K Baby Tee with pieces from your wardrobe:
+
+**Outfit 1: Y2K Streetwear**
+* **New Item:** Y2K Baby Tee — Butterfly Print
+* **Wardrobe Pieces:** Baggy straight-leg jeans, dark wash (w_001), Vintage black denim jacket (w_006), Chunky white sneakers (w_007), Black crossbody bag (w_010)
+* **Styling Notes:** Balance the fitted, cropped butterfly tee with high-waisted baggy denim. Layer the slightly cropped black denim jacket on top, and finish with chunky sneakers and the minimal crossbody bag for an authentic Y2K casual look.
+
+**Outfit 2: Casual Contrast**
+* **New Item:** Y2K Baby Tee — Butterfly Print
+* **Wardrobe Pieces:** Wide-leg khaki trousers (w_002), Black cropped zip hoodie (w_005), Black combat boots (w_008), Black crossbody bag (w_010)
+* **Styling Notes:** Pair the pink and purple butterfly graphic tee with earth-toned wide-leg trousers. Throw the black cropped zip hoodie on unzipped to show off the print, and ground the pastel top with edgy combat boots.
+
+  Fit card: Channel early 2000s vibes by styling the Y2K Baby Tee — Butterfly Print with high-waisted baggy denim and chunky sneakers for an effortless streetwear look. Find it now on depop for $18.00!
+
+2 model calls this session, 1310 prompt + 322 output tokens
 ```
-$ python app.py ask '...'
+
+**Empty-search path**
+
+```text
+> python app.py ask 'designer ballgown size XXS under $5'
+
+  No matching listings. Try broadening the description, choosing another size, or increasing the price ceiling.
+
+0 model calls this session
+```
+
+Both CLI runs exited with code 0. These are build checks, not the five-trial
+acceptance evaluation.
+
+The outfit output refers to high-waisted denim, but the selected jeans'
+wardrobe record says this. The caption carries that styling detail forward.
+
+Saved output:
+
+- [Matching query](results/milestone5_happy_output.txt)
+- [Empty search](results/milestone5_empty_output.txt)
 
 ```
 
 **The three tools, tested one at a time**
 
 ```
+
 $ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
 
 ```
 
 ```
+
 $ python -c "from tools import suggest_outfit; ..."
 
 ```
 
 ```
+
 $ python -c "from tools import create_fit_card; ..."
 
 ```
@@ -347,3 +409,4 @@ full. -->
 ---
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
+```
