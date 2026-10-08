@@ -1,0 +1,23 @@
+Test: one API-key character changed in child process; caching disabled.
+Produced by: agent.py::run_agent; printed by app.py::_ask_one.
+Exit code: 0
+
+[1] parse query
+      in:  vintage graphic tee under $30
+      out: {'description': 'vintage graphic tee', 'size': None, 'max_price': 30.0}
+[2] search_listings (via MCP): calling
+      in:  {'description': 'vintage graphic tee', 'size': None, 'max_price': 30.0}
+[3] search_listings (via MCP): returned
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+[4] select listing
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    Use the first ranked result for the outfit.
+[5] suggest_outfit: calling
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    Wardrobe contains 10 items.
+[6] model unavailable
+      →    Failed during outfit; stop without retrying downstream tools.
+
+  Could not complete the outfit stage. The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.
+
+1 model calls this session

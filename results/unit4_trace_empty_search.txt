@@ -1,0 +1,16 @@
+Command: ['D:\\FAU\\Session Fall 2026\\AI201\\Project02\\ai201-project2-fitfindr-starter-v2026\\.venv\\Scripts\\python.exe', 'app.py', 'ask', 'designer ballgown size XXS under $5', '--trace']
+Exit code: 0
+
+[1] parse query
+      in:  designer ballgown size XXS under $5
+      out: {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+[2] search_listings (via MCP): calling
+      in:  {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+[3] search_listings (via MCP): returned
+      out: [] (empty)
+[4] empty-search branch
+      →    No listings; stop before suggest_outfit.
+
+  No matching listings. Try broadening the description, choosing another size, or increasing the price ceiling.
+
+0 model calls this session

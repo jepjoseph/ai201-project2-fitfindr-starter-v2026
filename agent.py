@@ -17,7 +17,7 @@ import config
 import trace
 import re
 from tools import suggest_outfit, create_fit_card
-from mcp_client import call_tool
+from mcp_client import call_tool, MCPError
 from generate import ModelUnavailable
 
 
@@ -100,42 +100,121 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         "max_price": max_price,
     }
 
+    trace.step(
+        "parse query",
+        inputs=query,
+        returned=str(session["parsed"]),
+    )
+
     stage = "search"
     iterations = 0
 
-    while True:
-        iterations += 1
-        trace.check_iterations(iterations)
+    try:
+        while True:
+            iterations += 1
+            trace.check_iterations(iterations)
 
-        if stage == "search":
-            session["search_results"] = call_tool(
-                "search_listings",
-                session["parsed"],
-            )
+            if stage == "search":
+                trace.step(
+                    "search_listings (via MCP): calling",
+                    inputs=str(session["parsed"]),
+                )
 
-            if not session["search_results"]:
-                session["error"] = (
-                    "No matching listings. Try broadening the description, "
-                    "choosing another size, or increasing the price ceiling."
+                session["search_results"] = call_tool(
+                    "search_listings",
+                    session["parsed"],
+                )
+
+                trace.step(
+                    "search_listings (via MCP): returned",
+                    returned=session["search_results"],
+                )
+
+                if not session["search_results"]:
+                    session["error"] = (
+                        "No matching listings. Try broadening the description, "
+                        "choosing another size, or increasing the price ceiling."
+                    )
+                    trace.step(
+                        "empty-search branch",
+                        note="No listings; stop before suggest_outfit.",
+                    )
+                    return session
+
+                session["selected_item"] = session["search_results"][0]
+                trace.step(
+                    "select listing",
+                    returned=session["selected_item"],
+                    note="Use the first ranked result for the outfit.",
+                )
+                stage = "outfit"
+
+            elif stage == "outfit":
+                wardrobe_items = session["wardrobe"].get("items", [])
+
+                trace.step(
+                    "suggest_outfit: calling",
+                    inputs=session["selected_item"],
+                    note=(
+                        f"Wardrobe contains {len(wardrobe_items)} items."
+                        if wardrobe_items
+                        else (
+                            "Empty wardrobe: request general styling advice "
+                            "without claiming suggested pieces are owned."
+                        )
+                    ),
+                )
+
+                session["outfit_suggestion"] = suggest_outfit(
+                    session["selected_item"],
+                    session["wardrobe"],
+                )
+
+                trace.step(
+                    "suggest_outfit: returned",
+                    returned=session["outfit_suggestion"],
+                )
+                stage = "fit_card"
+
+            elif stage == "fit_card":
+                trace.step(
+                    "create_fit_card: calling",
+                    inputs=session["selected_item"],
+                    note="Use the outfit suggestion stored in the session.",
+                )
+
+                session["fit_card"] = create_fit_card(
+                    session["outfit_suggestion"],
+                    session["selected_item"],
+                )
+
+                trace.step(
+                    "create_fit_card: returned",
+                    returned=session["fit_card"],
+                    note="Fit card complete; stop.",
                 )
                 return session
 
-            session["selected_item"] = session["search_results"][0]
-            stage = "outfit"
+    except ModelUnavailable as exc:
+        session["error"] = (
+            f"Could not complete the {stage} stage. {exc}"
+        )
+        trace.step(
+            "model unavailable",
+            note=f"Failed during {stage}; stop without retrying downstream tools.",
+        )
+        return session
 
-        elif stage == "outfit":
-            session["outfit_suggestion"] = suggest_outfit(
-                session["selected_item"],
-                session["wardrobe"],
-            )
-            stage = "fit_card"
-
-        elif stage == "fit_card":
-            session["fit_card"] = create_fit_card(
-                session["outfit_suggestion"],
-                session["selected_item"],
-            )
-            return session
+    except MCPError:
+        session["error"] = (
+            "Could not search listings through MCP. "
+            "Run python mcp_client.py to check the server, then try again."
+        )
+        trace.step(
+            "MCP search failed",
+            note="Stop before outfit generation and fit-card creation.",
+        )
+        return session
 
 
 # ── running it directly ───────────────────────────────────────────────────────

@@ -374,12 +374,48 @@ Checkpoint evidence:
 **Happy path**
 
 ```
+[1] parse query
+      in:  vintage graphic tee under $30
+      out: {'description': 'vintage graphic tee', 'size': None, 'max_price': 30.0}
+[2] search_listings (via MCP): calling
+      in:  {'description': 'vintage graphic tee', 'size': None, 'max_price': 30.0}
+[3] search_listings (via MCP): returned
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+[4] select listing
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    Use the first ranked result for the outfit.
+[5] suggest_outfit: calling
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    Wardrobe contains 10 items.
+[6] suggest_outfit: returned
+      out: Here are two outfit ideas combining the Y2K Baby Tee with pieces from your wardrobe:  **Outfit 1: Y2K Streetwe…
+[7] create_fit_card: calling
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    Use the outfit suggestion stored in the session.
+[8] create_fit_card: returned
+      out: Channel early 2000s vibes by styling the Y2K Baby Tee — Butterfly Print with high-waisted baggy denim and chun…
+      →    Fit card complete; stop.
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
 
 ```
 
 **Empty search**
 
 ```
+[1] parse query
+      in:  designer ballgown size XXS under $5
+      out: {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+[2] search_listings (via MCP): calling
+      in:  {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+[3] search_listings (via MCP): returned
+      out: [] (empty)
+[4] empty-search branch
+      →    No listings; stop before suggest_outfit.
+
+  No matching listings. Try broadening the description, choosing another size, or increasing the price ceiling.
+
+0 model calls this session
 
 ```
 
@@ -387,6 +423,20 @@ Checkpoint evidence:
 behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
+
+I registered `search_listings` in `mcp_server.py`
+and changed the search stage in `agent.py::run_agent` to use
+`mcp_client.call_tool`. Tool discovery succeeded. The matching query
+returned an outfit and fit card, and the impossible query stopped before
+the model-backed tools. The matching checkpoint used cached responses.
+
+### Deliberate failure checks
+
+| Failure mode      | Observed handling                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| Empty search      | MCP Returned []; stopped before outfit generation with search advice. Zero model calls. |
+| Empty wardrobe    | Suggested styling without claiming ownership. Completed with two model calls.           |
+| Model unavailable | Invalid key, cache off: returned key-fix advice and stopped before fit-card creation.   |
 
 ---
 
