@@ -355,6 +355,22 @@ that produced it:
      the same length, your branch isn't working — and this is the fastest way
      anyone will ever find that out. -->
 
+I registered `search_listings` in `mcp_server.py` and changed the search stage
+in `agent.py::run_agent` to use `mcp_client.call_tool`. The client discovered
+the tool and its input schema. The matching query still selected the $18
+Y2K Baby Tee and returned an outfit and fit card. The impossible query
+returned an actionable message without calling either model-backed tool.
+
+The matching run used two cached model responses. These were MCP setup
+checks, not the five-trial acceptance evaluation. The captured output
+also contains incorrectly displayed dash characters.
+
+Checkpoint evidence:
+
+- [Tool discovery](results/unit4_mcp_discovery.txt)
+- [Matching query](results/unit4_mcp_happy.txt)
+- [Empty search](results/unit4_mcp_empty.txt)
+
 **Happy path**
 
 ```

@@ -1,0 +1,17 @@
+Asking mcp_server.py what it offersà
+
+  search_listings
+    
+<-- Search clothing listings by keyword overlap.
+
+description: Clothing description or search keywords.
+size: Optional size constraint, such as M or 8.
+max_price: Optional inclusive price ceiling in US dollars.
+
+Returns matching listing dictionaries ranked by keyword overlap.
+Returns an empty list when no listings match.
+
+    - description: string
+    - size: string  (optional)
+    - max_price: number  (optional)
+
