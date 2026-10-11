@@ -296,22 +296,32 @@ Additional output:
      `python run_eval.py --label before` runs everything and writes the table
      into results/. Paste it here and fill in the verdicts. -->
 
-| Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
-| --------- | ------ | ----- | ----- | ----- | ----- | ----- | ------- |
-| 1.        |        |       |       |       |       |       |         |
-| 2.        |        |       |       |       |       |       |         |
-| 3.        |        |       |       |       |       |       |         |
-| 4.        |        |       |       |       |       |       |         |
-| 5.        |        |       |       |       |       |       |         |
+I ran `python run_eval.py --label before` with caching disabled.
+The report is [baseline evidence](results/run_2026-10-11_170059_before.md).
+The run made 35 model calls, including the separate empty-wardrobe diagnostic.
+
+| Criterion                        | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict   |
+| -------------------------------- | ------ | ----- | ----- | ----- | ----- | ----- | --------- |
+| 1. Matching query completes      | ≥4/5   | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 2. Impossible query stops early  | 5/5    | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 3. Selected item stays unchanged | 5/5    | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 4. Caption details and length    | ≥4/5   | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 5. Search respects budget        | 5/5    | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+
+The empty-wardrobe scenario is diagnostic evidence, not a sixth criterion.
 
 **Real output from one try**, pasted as text, naming the file and function
-that produced it:
 
+Recorded by `run_eval.py::run_once`, calling
+`tools.py::create_fit_card`; written by `run_eval.py::write_report`.
+Criterion 4, try 1:
+
+```text
+Rock this Y2K Baby Tee — Butterfly Print with baggy dark-wash jeans, chunky white sneakers, and a black crossbody bag. Grab this cute fitted crop top now on depop for $18.00!
 ```
 
-```
-
----
+The caption contains the full listing title, platform `depop`, and correct
+price `$18.00`. It has 31 whitespace-separated words, within the 80-word limit.
 
 ## Verdicts and Diagnoses
 
@@ -331,15 +341,28 @@ that produced it:
      Look for a pattern. Three misses on the same tool is one problem, not
      three. -->
 
-| #   | Criterion | Target | Verdict | How I decided |
-| --- | --------- | ------ | ------- | ------------- |
-| 1   |           |        |         |               |
-| 2   |           |        |         |               |
-| 3   |           |        |         |               |
-| 4   |           |        |         |               |
-| 5   |           |        |         |               |
+| #   | Criterion                     | Target | Verdict | How I decided                                                                                       |
+| --- | ----------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------- |
+| 1   | Matching query completes      | ≥4/5   | MET     | All three tools completed and returned a fit card in every trial.                                   |
+| 2   | Impossible query stops early  | 5/5    | MET     | Only search ran; all five responses named constraints to change.                                    |
+| 3   | Selected item stays unchanged | 5/5    | MET     | Complete dictionary snapshots matched at outfit-tool entry in all trials.                           |
+| 4   | Caption details and length    | ≥4/5   | MET     | All captions included the full title, depop, and $18.00; lengths were 31, 41, 37, 44, and 36 words. |
+| 5   | Search respects budget        | 5/5    | MET     | Every search returned results, all within budget; size was None.                                    |
 
 **Diagnoses**
+
+None of the five original criteria was missed. Criterion 5 was too narrow
+to detect irrelevant results: the `graphic tee` search returned six
+in-budget listings, including cargo pants, a mesh top, and a hoodie.
+
+The weakness is in `tools.py::search_listings`. Its keyword-overlap scoring
+allows a listing to qualify by matching only part of the description.
+Mentioning a tee as a styling suggestion can also make another garment match.
+
+A tighter additional target would be: for the fixed `graphic tee` search
+with `max_price=30` and `size=None`, return at least one listing, and every
+returned listing must itself be a tee, as established by its title and
+description. This does not replace my original price criterion.
 
 ---
 
@@ -452,14 +475,6 @@ the model-backed tools. The matching checkpoint used cached responses.
 **Which failure it was meant to fix:**
 
 ### Run Log — After
-
-| Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
-| --------- | ------ | ----- | ----- | ----- | ----- | ----- | ------- |
-| 1.        |        |       |       |       |       |       |         |
-| 2.        |        |       |       |       |       |       |         |
-| 3.        |        |       |       |       |       |       |         |
-| 4.        |        |       |       |       |       |       |         |
-| 5.        |        |       |       |       |       |       |         |
 
 **Did it help, and how do I know:**
 
