@@ -1,0 +1,40 @@
+{
+  "produced_by": "results/search_relevance_check.py",
+  "search_transport": "mcp_client.call_tool",
+  "label": "after",
+  "arguments": {
+    "description": "graphic tee",
+    "size": null,
+    "max_price": 30.0
+  },
+  "expected_tee_ids": [
+    "lst_002",
+    "lst_006",
+    "lst_033"
+  ],
+  "results": [
+    {
+      "id": "lst_002",
+      "title": "Y2K Baby Tee — Butterfly Print",
+      "description": "Super cute early 2000s baby tee with butterfly graphic. Fitted crop length. Tag says medium but fits like a small.",
+      "price": 18.0
+    },
+    {
+      "id": "lst_006",
+      "title": "Graphic Tee — 2003 Tour Bootleg Style",
+      "description": "Vintage-style bootleg tee with faded graphic. Slightly boxy fit. 100% cotton, soft and worn-in.",
+      "price": 24.0
+    },
+    {
+      "id": "lst_033",
+      "title": "Vintage Band Tee — Faded Grey",
+      "description": "Faded grey band-style tee with distressed graphic. Crew neck. Fits boxy. Well-loved but no holes or major damage.",
+      "price": 19.0
+    }
+  ],
+  "result_count": 3,
+  "relevant_count": 3,
+  "precision": 1.0,
+  "all_three_reference_tees_returned": true,
+  "tighter_target_met": true
+}

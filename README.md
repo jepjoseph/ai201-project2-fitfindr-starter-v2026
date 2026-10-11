@@ -62,7 +62,9 @@ match, it stops and suggests changing the description, size, or budget.
 
 ### `search_listings`
 
-- **What it does:** Loads the supplied listings, filters by optional size and price ceiling, and ranks matches by keyword overlap with the requested description.
+- **What it does:** Requires all description keywords in the listing's
+  title or style tags, filters by optional size and inclusive price ceiling,
+  and orders qualifying results by keyword overlap.
 - **Inputs:** `description` (str), `size` (str or None, default None), `max_price` (float or None, default None).
 - **Returns:** A list of listing dictionaries containing `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`. Matches have positive keyword scores, are ranked highest first, and are limited by `config.SEARCH_RESULT_LIMIT`. Ties preserve dataset order.
 - **When it has nothing:** Returns `[]`.
@@ -470,16 +472,56 @@ the model-backed tools. The matching checkpoint used cached responses.
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** In `tools.py::search_listings`, a listing now qualifies
+only when all query words appear in its title or style tags. Previously,
+any query-word overlap with the title, description, or tags was sufficient.
+Size filtering, price filtering, and the model-backed tools were unchanged.
 
-**Which failure it was meant to fix:**
+**Which failure it was meant to fix:** No original criterion failed.
+The additional relevance check showed that the `graphic tee` search
+returned three tees alongside a mesh top, cargo pants, and a hoodie.
+The stricter matching rule addresses this search-tool weakness.
 
 ### Run Log — After
+
+I ran `python run_eval.py --label after` with the same scenarios,
+temperature, and five uncached trials. The run made 35 model calls.
+Full evidence: [after report](results/run_2026-10-11_173733_after.md).
+
+| Criterion                        | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict   |
+| -------------------------------- | ------ | ----- | ----- | ----- | ----- | ----- | --------- |
+| 1. Matching query completes      | ≥4/5   | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 2. Impossible query stops early  | 5/5    | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 3. Selected item stays unchanged | 5/5    | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 4. Caption details and length    | ≥4/5   | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+| 5. Search respects budget        | 5/5    | PASS  | PASS  | PASS  | PASS  | PASS  | MET (5/5) |
+
+All caption trials included the full title, depop, and $18.00.
+Their word counts were 36, 35, 36, 35, and 37.
 
 **Did it help, and how do I know:**
 
 <!-- If it made things worse, say that. Honestly reported, that earns full
      credit and is more interesting than one that worked. -->
+
+For the fixed `graphic tee` query,
+the focused check improved precision from 3/6 (50%) to 3/3 (100%).
+It removed all three irrelevant garments and retained all three reference
+tees. All five original criteria remained MET at 5/5, so no regression
+was observed in this evaluation. This does not establish performance
+for other query wording.
+
+| Focused measurement | Before | After |
+| ------------------- | -----: | ----: |
+| Returned listings   |      6 |     3 |
+| Relevant tees       |      3 |     3 |
+| Irrelevant garments |      3 |     0 |
+| Precision           |    50% |  100% |
+
+Measured through MCP by `results/search_relevance_check.py`:
+
+- [Before](results/search_relevance_before.json)
+- [After](results/search_relevance_after.json)
 
 ---
 
@@ -488,6 +530,18 @@ the model-backed tools. The matching checkpoint used cached responses.
 <!-- For each criterion still missed: what you'd do, and why you stopped where
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
+
+     No original criterion remains missed. However, requiring every query word
+
+in the title or tags can reject relevant listings whose matching wording
+appears only in the description. Exact token matching also does not handle
+synonyms or singular/plural variations.
+
+I would next test those cases against a manually reviewed reference set.
+I stopped after one search-policy change so the before/after comparison
+would isolate its effect. The caption evaluation covers one listing and
+one fixed outfit, so its results do not establish reliability across
+the full dataset.
 
 ## SUBMISSION CHECKLIST — unit 3
 
