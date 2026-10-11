@@ -569,6 +569,8 @@ would isolate its effect. The caption evaluation covers one listing and
 one fixed outfit, so its results do not establish reliability across
 the full dataset.
 
+<!-- ═════════════════════════════════════════════════════════════════════
+
 ## SUBMISSION CHECKLIST — unit 3
 
        [x] criteria.md has five numbered criteria, each with a target
@@ -582,28 +584,28 @@ the full dataset.
        [x] Repository URL submitted — WRITE IT DOWN, you submit the same one
            next unit
 
-<!-- ═════════════════════════════════════════════════════════════════════
 
 
+
+     ═════════════════════════════════════════════════════════════════════ -->
 
      SUBMISSION CHECKLIST — unit 4
 
-       [ ] mcp_server.py exists with one tool registered
+       [x] mcp_server.py exists with one tool registered
            (or a written record of exactly where the rewire broke)
-       [ ] Run Log — Before, five criteria, five tries each
-       [ ] Real output pasted underneath, naming file and function
-       [ ] A verdict on every criterion
-       [ ] A diagnosis for every miss, naming a place AND a mechanism
-       [ ] Loop Trace, with the MCP call visible in it
-       [ ] All three failure modes triggered and handled
-       [ ] One improvement, with Run Log — After in the same format
-       [ ] What's Still Broken
-       [ ] At least four new commits
-       [ ] The SAME repository URL as last unit
+       [x] Run Log — Before, five criteria, five tries each
+       [x] Real output pasted underneath, naming file and function
+       [x] A verdict on every criterion
+       [x] A diagnosis for every miss, naming a place AND a mechanism
+       [x] Loop Trace, with the MCP call visible in it
+       [x] All three failure modes triggered and handled
+       [x] One improvement, with Run Log — After in the same format
+       [x] What's Still Broken
+       [x] At least four new commits
+       [x] The SAME repository URL as last unit
 
      Do not delete and recreate this repository. Your commit history is what
      shows your criteria existed before your results did.
-     ═════════════════════════════════════════════════════════════════════ -->
 
 ---
 

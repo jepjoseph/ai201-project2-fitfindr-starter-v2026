@@ -1,0 +1,406 @@
+===== tools.py =====
+"""
+The three FitFindr tools.
+
+Each one is a standalone function you can call and test on its own, before any
+of them are wired into the loop. Build and test them one at a time — three
+untested tools joined by a loop is one problem that looks like six, because you
+can't tell which layer is lying to you.
+
+    search_listings(description, size, max_price)  → list[dict]
+    suggest_outfit(new_item, wardrobe)             → str
+    create_fit_card(outfit, new_item)              → str
+
+All three are stubs right now. They run and they do nothing — that's the
+starting position and it's deliberate.
+
+⚠️ Before you write any of them, fill in the **Tool Inventory** section of your
+README (Milestone 2). Four lines per tool: what it does, each input with its
+type, exactly what it returns, and what it returns when it has nothing to give.
+That last line is what your loop branches on. "Returns a list" earns nothing —
+the description has to say what is *in* the list.
+"""
+
+import config  # noqa: F401 — you'll use this in search_listings
+from generate import generate
+from utils.data_loader import load_listings
+
+
+# ── Tool 1: search_listings ───────────────────────────────────────────────────
+
+def search_listings(
+    description: str,
+    size: str | None = None,
+    max_price: float | None = None,
+) -> list[dict]:
+    """
+    Search the listings data for items matching a description, and optionally a
+    size and a price ceiling.
+
+    This is the tool that doesn't call the model, which makes it the easiest one
+    to test and the one to move onto MCP in unit 4.
+
+    Args:
+        description: keywords describing what the user wants
+                     (e.g. "vintage graphic tee").
+        size:        a size string to filter by, or None to skip size filtering.
+                     Match case-insensitively — "M" should match "S/M".
+
+                     ⚠️ Read the sizes in the data before you reach for a plain
+                     substring test. `"s" in "us 9"` is True, and so is
+                     `"l" in "xl"`. A filter that returns shoes when someone
+                     asked for a small top reads like a broken search, and it
+                     will quietly cost you in unit 4 when you test criterion 1.
+                     What counts as a size match is part of your spec — decide
+                     it and write it into your Tool Inventory.
+        max_price:   maximum price, inclusive, or None to skip price filtering.
+
+    Returns:
+        A list of matching listing dicts, best match first.
+        **Returns an empty list when nothing matches — an empty list, not None,
+        and not an exception.** Your loop branches on this.
+
+    Each listing dict has these fields:
+        id, title, description, category, style_tags (list), size,
+        condition, price (float), colors (list), brand (str or None), platform
+
+    Note that `brand` is None for most listings. That is deliberate and
+    realistic — thrift listings often have no brand. If something you write
+    assumes a brand is always there, you will find out in unit 4.
+
+    TODO:
+        1. Load every listing with load_listings().
+        2. Filter by max_price and by size, when each is provided.
+        3. Score what's left by keyword overlap with `description`.
+        4. Drop anything scoring zero.
+        5. Sort by score, highest first, and return the listing dicts —
+           at most config.SEARCH_RESULT_LIMIT of them.
+
+    Test it from a terminal before you move on:
+        python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
+    """
+    # TODO: replace this with your implementation
+    return []
+
+
+# ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
+
+def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
+    """
+    Given a thrifted item and the user's wardrobe, suggest one or two outfits.
+
+    This one calls the model, through `generate()`. You don't need to think
+    about rate limits — the adapter handles pacing for you.
+
+    Args:
+        new_item: a listing dict — the item the user is considering.
+        wardrobe: a wardrobe dict with an 'items' key holding a list of items.
+                  **It may be empty.** Handle that.
+
+    Returns:
+        A non-empty string with outfit suggestions.
+        With an empty wardrobe, return general styling advice rather than
+        raising or returning "". Unit 4 has you trigger the empty wardrobe on
+        purpose, so decide now what it should do.
+
+    TODO:
+        1. Check whether wardrobe['items'] is empty.
+        2. If it is, ask the model for general styling ideas for this item.
+        3. If it isn't, format the wardrobe items into the prompt and ask for
+           specific combinations naming pieces the user already owns.
+        4. Return the model's response.
+
+    Test it from a terminal before you move on:
+        python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+    """
+    # TODO: replace this with your implementation
+    return ""
+
+
+# ── Tool 3: create_fit_card ───────────────────────────────────────────────────
+
+def create_fit_card(outfit: str, new_item: dict) -> str:
+    """
+    Write a short caption someone would actually post about the find.
+
+    This calls the model too.
+
+    Args:
+        outfit:   the outfit suggestion string from suggest_outfit().
+        new_item: the listing dict for the item.
+
+    Returns:
+        A two-to-four sentence caption.
+        If `outfit` is empty or whitespace, return a descriptive message rather
+        than raising.
+
+    The caption should read like a real post rather than a product description,
+    mention the item and its price and platform once each, and be specific about
+    the vibe.
+
+    It should also come out **differently for different inputs**. If you run
+    this three times on the same item and get three word-for-word identical
+    strings, it's one of two things, and both are near the top of `config.py`:
+
+        • CACHE_ENABLED — the adapter handed back an answer it already had
+        • TEMPERATURE   — at 0.0 the model gives the same words every time
+
+    TODO:
+        1. Guard against an empty or whitespace-only `outfit`.
+        2. Build a prompt with the item details and the outfit.
+        3. Call generate() and return the response.
+
+    Test it from a terminal before you move on:
+        python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+    """
+    # TODO: replace this with your implementation
+    return ""
+
+===== agent.py =====
+"""
+The FitFindr planning loop.
+
+This is the file that makes FitFindr an agent rather than a script. It decides
+which tool to run next based on what the last one returned.
+
+If your loop calls all three tools no matter what comes back, you have a list
+of function calls. A loop looks at the last result before it picks the next
+step. **That branch is the graded part of this unit.**
+
+Build and test your three tools in `tools.py` first. Then come here.
+
+    python agent.py          runs both example paths below
+"""
+
+import config
+import trace
+from tools import search_listings, suggest_outfit, create_fit_card
+from generate import ModelUnavailable
+
+
+# ── session state ─────────────────────────────────────────────────────────────
+
+def new_session(query: str, wardrobe: dict) -> dict:
+    """
+    A fresh session for one user interaction.
+
+    The session is the single source of truth for a run. Every tool result goes
+    in here, and the next tool reads it back out.
+
+    You could pass values straight from one call to the next. It would work,
+    and you would not be able to test it — you can't print a variable you have
+    already overwritten. Going through the session is what makes the state
+    visible, and unit 4 has you write a criterion about exactly that.
+
+    Add fields if you need them.
+    """
+    return {
+        "query": query,              # what the user typed
+        "parsed": {},                # description / size / max_price you pulled out of it
+        "search_results": [],        # everything search_listings returned
+        "selected_item": None,       # the one you chose — goes into suggest_outfit
+        "wardrobe": wardrobe,        # the user's wardrobe
+        "outfit_suggestion": None,   # what suggest_outfit returned
+        "fit_card": None,            # what create_fit_card returned
+        "error": None,               # set when the run ended early
+    }
+
+
+# ── planning loop ─────────────────────────────────────────────────────────────
+
+def run_agent(query: str, wardrobe: dict) -> dict:
+    """
+    Run the loop once and return the finished session.
+
+    Args:
+        query:    what the user asked for, in plain language
+                  (e.g. "vintage graphic tee under $30, size M").
+        wardrobe: a wardrobe dict — get_example_wardrobe() or
+                  get_empty_wardrobe() from utils/data_loader.py.
+
+    Returns:
+        The session dict. **Check session["error"] first** — if it isn't None,
+        the run ended early and the later fields will still be None.
+
+    ─────────────────────────────────────────────────────────────────────────
+    TODO — build this, following the branch rule you wrote in Milestone 2.
+
+      1. Start a session with new_session().
+
+      2. Count the times round the loop, and call trace.check_iterations(count)
+         on each one before you go again. It raises when the count passes
+         MAX_ITERATIONS in config.py — see trace.py.
+
+      3. Parse the query into a description, a size, and a max_price. Regex,
+         string splitting, or asking the model are all fine — say which you
+         chose in your README. Put the result in session["parsed"].
+
+      4. Call search_listings() with what you parsed.
+         Put the results in session["search_results"].
+
+         ⚠️ THIS IS THE BRANCH. If nothing came back:
+              - put a message in session["error"] saying what the user could
+                change — "No results" is not that message
+              - return the session
+              - do NOT call suggest_outfit with nothing
+
+      5. Choose an item — the first result is fine. Put it in
+         session["selected_item"].
+
+      6. Call suggest_outfit() with the selected item and the wardrobe.
+         Put the result in session["outfit_suggestion"].
+
+      7. Call create_fit_card() with the outfit and the item.
+         Put the result in session["fit_card"].
+
+      8. Return the session.
+
+    ─────────────────────────────────────────────────────────────────────────
+    IN UNIT 4 you come back and add two things:
+
+      • Trace calls. One per step. `trace.step("search_listings", inputs=...,
+        returned=...)` — see trace.py. Your README needs the output.
+
+      • A handler for ModelUnavailable, so a bad key produces a message rather
+        than a stack trace. The import is already at the top of this file.
+    """
+    session = new_session(query, wardrobe)
+
+    # TODO: delete these two lines and build the loop.
+    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    return session
+
+
+# ── running it directly ───────────────────────────────────────────────────────
+
+def _show(session: dict) -> None:
+    if session["error"]:
+        print(f"  stopped: {session['error']}")
+        print(f"  fit_card is {session['fit_card']!r} — it should still be None here")
+        return
+
+    item = session["selected_item"] or {}
+    print(f"  found:    {item.get('title')} — ${item.get('price')} on {item.get('platform')}")
+    print(f"  outfit:   {session['outfit_suggestion']}")
+    print(f"  fit card: {session['fit_card']}")
+
+
+if __name__ == "__main__":
+    from utils.data_loader import get_example_wardrobe
+
+    print("=== A query the data can match ===")
+    _show(run_agent(
+        query="looking for a vintage graphic tee under $30",
+        wardrobe=get_example_wardrobe(),
+    ))
+
+    print("\n=== A query it can't ===")
+    _show(run_agent(
+        query="designer ballgown size XXS under $5",
+        wardrobe=get_example_wardrobe(),
+    ))
+
+    print(
+        "\nThe second one should stop before the fit card. If both paths look "
+        "the same,\nthe branch isn't doing anything yet."
+    )
+
+===== utils\data_loader.py =====
+"""
+Utility functions for loading the mock listings dataset and wardrobe schema.
+Use these in your tool implementations to access the data without re-reading
+the files each time.
+"""
+
+import json
+import os
+from typing import Optional
+
+# Resolve the path to the data directory relative to this file
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+
+
+def load_listings() -> list[dict]:
+    """
+    Load all mock listings from the dataset.
+
+    Returns:
+        A list of listing dictionaries. Each listing has the following fields:
+        - id (str)
+        - title (str)
+        - description (str)
+        - category (str): one of tops, bottoms, outerwear, shoes, accessories
+        - style_tags (list[str])
+        - size (str)
+        - condition (str): excellent, good, or fair
+        - price (float)
+        - colors (list[str])
+        - brand (str or None)
+        - platform (str): depop, thredUp, or poshmark
+    """
+    path = os.path.join(_DATA_DIR, "listings.json")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_wardrobe_schema() -> dict:
+    """
+    Load the wardrobe schema, including the example wardrobe and empty template.
+
+    Returns:
+        A dictionary containing:
+        - schema: the field definitions for a wardrobe item
+        - example_wardrobe: a sample wardrobe with 10 items
+        - empty_wardrobe: a starting template for a new user
+    """
+    path = os.path.join(_DATA_DIR, "wardrobe_schema.json")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _wardrobe(name: str) -> dict:
+    """
+    Pull one wardrobe out of the schema file, without the documentation keys.
+
+    The JSON uses underscore-prefixed keys (_description, _note) to explain
+    itself to a human reader. Those are notes about the file, not part of a
+    wardrobe, and stripping them here means both wardrobes below come back
+    the same shape. Otherwise the empty one carries an extra _note key, and a
+    tool that formats the whole dict into a prompt would send the model a
+    sentence about templates.
+    """
+    wardrobe = load_wardrobe_schema()[name]
+    return {k: v for k, v in wardrobe.items() if not k.startswith("_")}
+
+
+def get_example_wardrobe() -> dict:
+    """
+    Convenience function — returns just the example wardrobe items list.
+
+    Returns:
+        A wardrobe dict with an 'items' key containing a list of wardrobe items.
+    """
+    return _wardrobe("example_wardrobe")
+
+
+def get_empty_wardrobe() -> dict:
+    """
+    Convenience function — returns an empty wardrobe template.
+
+    Returns:
+        A wardrobe dict with an empty 'items' list. Same shape as the example
+        wardrobe — the only difference is that 'items' is empty.
+    """
+    return _wardrobe("empty_wardrobe")
+
+
+# --- Quick sanity check ---
+if __name__ == "__main__":
+    listings = load_listings()
+    print(f"Loaded {len(listings)} listings.")
+    print(f"First listing: {listings[0]['title']} — ${listings[0]['price']}")
+
+    wardrobe = get_example_wardrobe()
+    print(f"\nExample wardrobe has {len(wardrobe['items'])} items.")
+    print(f"First item: {wardrobe['items'][0]['name']}")
+

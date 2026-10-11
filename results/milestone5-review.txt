@@ -1,0 +1,471 @@
+===== agent.py =====
+"""
+The FitFindr planning loop.
+
+This is the file that makes FitFindr an agent rather than a script. It decides
+which tool to run next based on what the last one returned.
+
+If your loop calls all three tools no matter what comes back, you have a list
+of function calls. A loop looks at the last result before it picks the next
+step. **That branch is the graded part of this unit.**
+
+Build and test your three tools in `tools.py` first. Then come here.
+
+    python agent.py          runs both example paths below
+"""
+
+import config
+import trace
+from tools import search_listings, suggest_outfit, create_fit_card
+from generate import ModelUnavailable
+
+
+# ── session state ─────────────────────────────────────────────────────────────
+
+def new_session(query: str, wardrobe: dict) -> dict:
+    """
+    A fresh session for one user interaction.
+
+    The session is the single source of truth for a run. Every tool result goes
+    in here, and the next tool reads it back out.
+
+    You could pass values straight from one call to the next. It would work,
+    and you would not be able to test it — you can't print a variable you have
+    already overwritten. Going through the session is what makes the state
+    visible, and unit 4 has you write a criterion about exactly that.
+
+    Add fields if you need them.
+    """
+    return {
+        "query": query,              # what the user typed
+        "parsed": {},                # description / size / max_price you pulled out of it
+        "search_results": [],        # everything search_listings returned
+        "selected_item": None,       # the one you chose — goes into suggest_outfit
+        "wardrobe": wardrobe,        # the user's wardrobe
+        "outfit_suggestion": None,   # what suggest_outfit returned
+        "fit_card": None,            # what create_fit_card returned
+        "error": None,               # set when the run ended early
+    }
+
+
+# ── planning loop ─────────────────────────────────────────────────────────────
+
+def run_agent(query: str, wardrobe: dict) -> dict:
+    """
+    Run the loop once and return the finished session.
+
+    Args:
+        query:    what the user asked for, in plain language
+                  (e.g. "vintage graphic tee under $30, size M").
+        wardrobe: a wardrobe dict — get_example_wardrobe() or
+                  get_empty_wardrobe() from utils/data_loader.py.
+
+    Returns:
+        The session dict. **Check session["error"] first** — if it isn't None,
+        the run ended early and the later fields will still be None.
+
+    ─────────────────────────────────────────────────────────────────────────
+    TODO — build this, following the branch rule you wrote in Milestone 2.
+
+      1. Start a session with new_session().
+
+      2. Count the times round the loop, and call trace.check_iterations(count)
+         on each one before you go again. It raises when the count passes
+         MAX_ITERATIONS in config.py — see trace.py.
+
+      3. Parse the query into a description, a size, and a max_price. Regex,
+         string splitting, or asking the model are all fine — say which you
+         chose in your README. Put the result in session["parsed"].
+
+      4. Call search_listings() with what you parsed.
+         Put the results in session["search_results"].
+
+         ⚠️ THIS IS THE BRANCH. If nothing came back:
+              - put a message in session["error"] saying what the user could
+                change — "No results" is not that message
+              - return the session
+              - do NOT call suggest_outfit with nothing
+
+      5. Choose an item — the first result is fine. Put it in
+         session["selected_item"].
+
+      6. Call suggest_outfit() with the selected item and the wardrobe.
+         Put the result in session["outfit_suggestion"].
+
+      7. Call create_fit_card() with the outfit and the item.
+         Put the result in session["fit_card"].
+
+      8. Return the session.
+
+    ─────────────────────────────────────────────────────────────────────────
+    IN UNIT 4 you come back and add two things:
+
+      • Trace calls. One per step. `trace.step("search_listings", inputs=...,
+        returned=...)` — see trace.py. Your README needs the output.
+
+      • A handler for ModelUnavailable, so a bad key produces a message rather
+        than a stack trace. The import is already at the top of this file.
+    """
+    session = new_session(query, wardrobe)
+
+    # TODO: delete these two lines and build the loop.
+    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    return session
+
+
+# ── running it directly ───────────────────────────────────────────────────────
+
+def _show(session: dict) -> None:
+    if session["error"]:
+        print(f"  stopped: {session['error']}")
+        print(f"  fit_card is {session['fit_card']!r} — it should still be None here")
+        return
+
+    item = session["selected_item"] or {}
+    print(f"  found:    {item.get('title')} — ${item.get('price')} on {item.get('platform')}")
+    print(f"  outfit:   {session['outfit_suggestion']}")
+    print(f"  fit card: {session['fit_card']}")
+
+
+if __name__ == "__main__":
+    from utils.data_loader import get_example_wardrobe
+
+    print("=== A query the data can match ===")
+    _show(run_agent(
+        query="looking for a vintage graphic tee under $30",
+        wardrobe=get_example_wardrobe(),
+    ))
+
+    print("\n=== A query it can't ===")
+    _show(run_agent(
+        query="designer ballgown size XXS under $5",
+        wardrobe=get_example_wardrobe(),
+    ))
+
+    print(
+        "\nThe second one should stop before the fit card. If both paths look "
+        "the same,\nthe branch isn't doing anything yet."
+    )
+
+===== trace.py =====
+"""
+A trace: a printed record of what your agent did, step by step, in order.
+
+Right now, when your agent does something strange, your only evidence is the
+final output. A trace turns that into a sequence you can point at.
+
+You'll add trace calls to your loop in unit 4, Milestone 2. The formatting is
+done for you here so you're not fighting alignment — what's yours is deciding
+*where* the calls go, which is the part that makes the trace worth reading.
+
+Use it like this, inside `run_agent()`:
+
+    from trace import step, start_trace, get_trace
+
+    start_trace()
+    ...
+    step("search_listings", inputs={"description": desc, "max_price": 30},
+         returned=results)
+
+At the end, `get_trace()` gives you the whole thing as text, ready to paste
+into your README under **Loop Trace**.
+
+Two things the rubric wants to see in it: every tool call in order, and the
+MCP call visible among them. If you moved `search_listings` onto MCP, say so
+in the step name — `search_listings (via MCP)` is enough.
+"""
+
+import config
+
+_lines: list[str] = []
+_step_number = 0
+
+
+def start_trace() -> None:
+    """Clear the trace. Call this at the start of each run."""
+    global _step_number
+    _lines.clear()
+    _step_number = 0
+
+
+def step(name: str, inputs=None, returned=None, note: str = "") -> None:
+    """
+    Record one step of the loop.
+
+    Args:
+        name:     what happened — usually a tool name.
+        inputs:   what went in. Anything printable.
+        returned: what came back. Shortened automatically, so passing a long
+                  list of listings is fine.
+        note:     an optional word on why, e.g. "branch: empty, stopping".
+    """
+    global _step_number
+    _step_number += 1
+
+    line = f"[{_step_number}] {name}"
+    if inputs is not None:
+        line += f"\n      in:  {_short(inputs)}"
+    if returned is not None:
+        line += f"\n      out: {_short(returned)}"
+    if note:
+        line += f"\n      →    {note}"
+
+    _lines.append(line)
+    print(line, flush=True)
+
+
+def get_trace() -> str:
+    """The whole trace as text, ready to paste into your README."""
+    return "\n".join(_lines)
+
+
+def _short(value, limit: int = 110) -> str:
+    """Keep the trace readable. A 40-item list of dicts is not readable."""
+    if isinstance(value, list):
+        if not value:
+            return "[] (empty)"
+        head = value[0]
+        if isinstance(head, dict) and "title" in head:
+            titles = ", ".join(str(v.get("title", "?")) for v in value[:3])
+            more = f" … +{len(value) - 3} more" if len(value) > 3 else ""
+            return f"{len(value)} items: {titles}{more}"
+        return f"{len(value)} items: {str(head)[:60]}…"
+
+    if isinstance(value, dict):
+        if "title" in value:
+            return f"{value.get('title')} (${value.get('price')}, {value.get('platform')})"
+        keys = ", ".join(list(value)[:6])
+        return f"dict with keys: {keys}"
+
+    text = str(value).replace("\n", " ")
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def check_iterations(count: int) -> None:
+    """
+    Stop condition. Raise if the loop has gone round too many times.
+
+    Your loop this unit is short enough that you may never hit this. Keep the
+    call anyway — a missing stop condition is the most common architectural
+    failure in production agents, and the habit is the point.
+    """
+    if count > config.MAX_ITERATIONS:
+        raise RuntimeError(
+            f"The loop ran {count} times, past MAX_ITERATIONS "
+            f"({config.MAX_ITERATIONS}) in config.py.\n"
+            f"That almost always means a branch isn't ending. Print the value "
+            f"your branch checks, on the line before the `if`."
+        )
+
+===== app.py =====
+#!/usr/bin/env python3
+"""
+FitFindr — command line.
+
+    python app.py ask 'vintage graphic tee under $30, size M'
+    python app.py ask                     keep asking until you quit
+    python app.py ask --empty-wardrobe    run as a user with nothing saved
+    python app.py listings                browse the data  (Milestone 1)
+    python app.py fields                  what fields a listing has
+    python app.py examples                queries worth trying, including a dud
+
+Add --trace to any `ask` to print the loop step by step.
+
+⚠️ Quote your query with SINGLE quotes. In PowerShell, "under $30" in double
+quotes silently becomes "under " — PowerShell reads $30 as a variable and
+substitutes nothing, so you search with no price ceiling and get no error
+telling you why. Single quotes are literal in PowerShell, bash and zsh alike.
+"""
+
+import argparse
+import sys
+
+import config
+
+# Every query here except the last one has something real to find in
+# data/listings.json. If you add your own, check it against the data first — a
+# query that finds nothing because the item doesn't exist looks exactly like a
+# search tool that's broken.
+EXAMPLE_QUERIES = [
+    "vintage graphic tee under $30",
+    "90s track jacket in size M",
+    "silk slip dress in midi length under $40",
+    "platform sneakers size 8",
+    "denim jacket under $50",
+    "designer ballgown size XXS under $5",   # matches nothing, on purpose
+]
+
+
+def cmd_fields(args):
+    """Milestone 1 — you can't filter on a field that isn't there."""
+    from utils.data_loader import load_listings, get_example_wardrobe
+
+    listing = load_listings()[0]
+    print("A listing has these fields:\n")
+    for key, value in listing.items():
+        shown = str(value)
+        if len(shown) > 58:
+            shown = shown[:58] + "…"
+        print(f"  {key:<14} {type(value).__name__:<6} {shown}")
+
+    item = get_example_wardrobe()["items"][0]
+    print("\nA wardrobe item has these fields:\n")
+    for key, value in item.items():
+        shown = str(value)
+        if len(shown) > 58:
+            shown = shown[:58] + "…"
+        print(f"  {key:<14} {type(value).__name__:<6} {shown}")
+
+    print(
+        "\nThese are what search_listings can filter on. Read a few whole "
+        "listings\nwith `python app.py listings` before you write it."
+    )
+
+
+def cmd_listings(args):
+    """Milestone 1 — read the data before you write tools against it."""
+    from utils.data_loader import load_listings
+
+    listings = load_listings()
+
+    if args.full:
+        import json
+        for listing in listings[: args.n]:
+            print(json.dumps(listing, indent=2))
+            print()
+        return
+
+    print(f"{len(listings)} listings.\n")
+    print(f"{'id':<6}{'price':>8}  {'size':<22}{'platform':<11}title")
+    print("-" * 92)
+    for listing in listings[: args.n]:
+        print(
+            f"{str(listing['id']):<6}"
+            f"{listing['price']:>8.2f}  "
+            f"{str(listing['size']):<22}"
+            f"{listing['platform']:<11}"
+            f"{listing['title'][:38]}"
+        )
+    if len(listings) > args.n:
+        print(f"\n… {len(listings) - args.n} more. Use -n {len(listings)} to see them all.")
+    print("\nRead five or six all the way through: python app.py listings --full -n 6")
+
+
+def cmd_examples(args):
+    print("Queries worth trying:\n")
+    for query in EXAMPLE_QUERIES[:-1]:
+        print(f"  python app.py ask '{query}'")
+    print(f"\nAnd one the data cannot match — this is the empty-search branch:\n")
+    print(f"  python app.py ask '{EXAMPLE_QUERIES[-1]}'")
+    print(
+        "\nSingle quotes on purpose. In PowerShell a query in \"double quotes\"\n"
+        "loses the $30 — it gets read as a variable — and you search with no\n"
+        "price ceiling, with nothing to tell you it happened."
+    )
+
+
+def _ask_one(query, wardrobe, use_trace):
+    from agent import run_agent
+    import trace as trace_module
+
+    if use_trace:
+        trace_module.start_trace()
+
+    session = run_agent(query, wardrobe)
+
+    print()
+    if session["error"]:
+        print(f"  {session['error']}")
+    else:
+        item = session["selected_item"] or {}
+        print(f"  Found:    {item.get('title')} — ${item.get('price')} on {item.get('platform')}")
+        print()
+        print(f"  Outfit:   {session['outfit_suggestion']}")
+        print()
+        print(f"  Fit card: {session['fit_card']}")
+    print()
+
+    if use_trace:
+        text = trace_module.get_trace()
+        if not text:
+            print(
+                "  (--trace printed nothing. You haven't added trace.step() calls to\n"
+                "   run_agent() yet — that's unit 4, Milestone 2.)\n"
+            )
+    return session
+
+
+def cmd_ask(args):
+    from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
+    import generate
+
+    wardrobe = get_empty_wardrobe() if args.empty_wardrobe else get_example_wardrobe()
+    if args.empty_wardrobe:
+        print("(running with an empty wardrobe)")
+
+    try:
+        if args.query:
+            _ask_one(args.query, wardrobe, args.trace)
+        else:
+            print("Ask for something, or press Enter on an empty line to quit.\n")
+            while True:
+                try:
+                    query = input("> ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    break
+                if not query:
+                    break
+                _ask_one(query, wardrobe, args.trace)
+    finally:
+        print(generate.usage())
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="app.py",
+        description="FitFindr",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_fields = sub.add_parser("fields", help="what fields the data has")
+    p_fields.set_defaults(func=cmd_fields)
+
+    p_list = sub.add_parser("listings", help="browse the listings data")
+    p_list.add_argument("-n", type=int, default=15, help="how many to show")
+    p_list.add_argument("--full", action="store_true", help="print whole records")
+    p_list.set_defaults(func=cmd_listings)
+
+    p_ex = sub.add_parser("examples", help="queries worth trying")
+    p_ex.set_defaults(func=cmd_examples)
+
+    p_ask = sub.add_parser("ask", help="run the agent")
+    p_ask.add_argument("query", nargs="?")
+    p_ask.add_argument("--trace", action="store_true", help="print the loop step by step")
+    p_ask.add_argument(
+        "--empty-wardrobe",
+        action="store_true",
+        help="run as a user with nothing saved — one of unit 4's failure modes",
+    )
+    p_ask.set_defaults(func=cmd_ask)
+
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
+    try:
+        args.func(args)
+    except KeyboardInterrupt:
+        print("\nStopped.")
+        sys.exit(130)
+    except Exception as exc:  # noqa: BLE001 — students read this, not a traceback
+        print(f"\n{type(exc).__name__}: {exc}\n", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+

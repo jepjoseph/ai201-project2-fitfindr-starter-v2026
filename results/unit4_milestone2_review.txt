@@ -1,0 +1,920 @@
+﻿============================================================
+FILE: agent.py
+============================================================
+"""
+The FitFindr planning loop.
+
+This is the file that makes FitFindr an agent rather than a script. It decides
+which tool to run next based on what the last one returned.
+
+If your loop calls all three tools no matter what comes back, you have a list
+of function calls. A loop looks at the last result before it picks the next
+step. **That branch is the graded part of this unit.**
+
+Build and test your three tools in `tools.py` first. Then come here.
+
+    python agent.py          runs both example paths below
+"""
+
+import config
+import trace
+import re
+from tools import suggest_outfit, create_fit_card
+from mcp_client import call_tool
+from generate import ModelUnavailable
+
+
+# â”€â”€ session state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def new_session(query: str, wardrobe: dict) -> dict:
+    """
+    A fresh session for one user interaction.
+
+    The session is the single source of truth for a run. Every tool result goes
+    in here, and the next tool reads it back out.
+
+    You could pass values straight from one call to the next. It would work,
+    and you would not be able to test it â€” you can't print a variable you have
+    already overwritten. Going through the session is what makes the state
+    visible, and unit 4 has you write a criterion about exactly that.
+
+    Add fields if you need them.
+    """
+    return {
+        "query": query,              # what the user typed
+        "parsed": {},                # description / size / max_price you pulled out of it
+        "search_results": [],        # everything search_listings returned
+        "selected_item": None,       # the one you chose â€” goes into suggest_outfit
+        "wardrobe": wardrobe,        # the user's wardrobe
+        "outfit_suggestion": None,   # what suggest_outfit returned
+        "fit_card": None,            # what create_fit_card returned
+        "error": None,               # set when the run ended early
+    }
+
+
+# â”€â”€ planning loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def run_agent(query: str, wardrobe: dict) -> dict:
+    """Run the tools through session state, stopping when search is empty."""
+    session = new_session(query, wardrobe)
+
+    description = query.strip()
+
+    price_match = re.search(
+        r"\bunder\s+\$?(\d+(?:\.\d+)?)\b",
+        description,
+        re.IGNORECASE,
+    )
+    max_price = float(price_match.group(1)) if price_match else None
+    if price_match:
+        description = (
+            description[:price_match.start()]
+            + " "
+            + description[price_match.end():]
+        )
+
+    size_match = re.search(
+        r"\bsize\s+((?:US\s+)?\d+(?:\.\d+)?"
+        r"|W\d+(?:\s+L\d+)?"
+        r"|XXXL|XXL|XXS|XL|XS|[SML](?:/[SML])?)\b",
+        description,
+        re.IGNORECASE,
+    )
+    size = size_match.group(1).upper() if size_match else None
+    if size_match:
+        description = (
+            description[:size_match.start()]
+            + " "
+            + description[size_match.end():]
+        )
+
+    description = re.sub(
+        r"^\s*(?:looking for\s+|find me\s+)",
+        "",
+        description,
+        flags=re.IGNORECASE,
+    )
+    description = re.sub(r"\b(?:in|a|an)\b", " ", description, flags=re.IGNORECASE)
+    description = re.sub(r"\s+", " ", description).strip(" ,")
+
+    session["parsed"] = {
+        "description": description,
+        "size": size,
+        "max_price": max_price,
+    }
+
+    stage = "search"
+    iterations = 0
+
+    while True:
+        iterations += 1
+        trace.check_iterations(iterations)
+
+        if stage == "search":
+            session["search_results"] = call_tool(
+                "search_listings",
+                session["parsed"],
+            )
+
+            if not session["search_results"]:
+                session["error"] = (
+                    "No matching listings. Try broadening the description, "
+                    "choosing another size, or increasing the price ceiling."
+                )
+                return session
+
+            session["selected_item"] = session["search_results"][0]
+            stage = "outfit"
+
+        elif stage == "outfit":
+            session["outfit_suggestion"] = suggest_outfit(
+                session["selected_item"],
+                session["wardrobe"],
+            )
+            stage = "fit_card"
+
+        elif stage == "fit_card":
+            session["fit_card"] = create_fit_card(
+                session["outfit_suggestion"],
+                session["selected_item"],
+            )
+            return session
+
+
+# â”€â”€ running it directly â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def _show(session: dict) -> None:
+    if session["error"]:
+        print(f"  stopped: {session['error']}")
+        print(f"  fit_card is {session['fit_card']!r} â€” it should still be None here")
+        return
+
+    item = session["selected_item"] or {}
+    print(f"  found:    {item.get('title')} â€” ${item.get('price')} on {item.get('platform')}")
+    print(f"  outfit:   {session['outfit_suggestion']}")
+    print(f"  fit card: {session['fit_card']}")
+
+
+if __name__ == "__main__":
+    from utils.data_loader import get_example_wardrobe
+
+    print("=== A query the data can match ===")
+    _show(run_agent(
+        query="looking for a vintage graphic tee under $30",
+        wardrobe=get_example_wardrobe(),
+    ))
+
+    print("\n=== A query it can't ===")
+    _show(run_agent(
+        query="designer ballgown size XXS under $5",
+        wardrobe=get_example_wardrobe(),
+    ))
+
+    print(
+        "\nThe second one should stop before the fit card. If both paths look "
+        "the same,\nthe branch isn't doing anything yet."
+    )
+
+============================================================
+FILE: trace.py
+============================================================
+"""
+A trace: a printed record of what your agent did, step by step, in order.
+
+Right now, when your agent does something strange, your only evidence is the
+final output. A trace turns that into a sequence you can point at.
+
+You'll add trace calls to your loop in unit 4, Milestone 2. The formatting is
+done for you here so you're not fighting alignment â€” what's yours is deciding
+*where* the calls go, which is the part that makes the trace worth reading.
+
+Use it like this, inside `run_agent()`:
+
+    from trace import step, start_trace, get_trace
+
+    start_trace()
+    ...
+    step("search_listings", inputs={"description": desc, "max_price": 30},
+         returned=results)
+
+At the end, `get_trace()` gives you the whole thing as text, ready to paste
+into your README under **Loop Trace**.
+
+Two things the rubric wants to see in it: every tool call in order, and the
+MCP call visible among them. If you moved `search_listings` onto MCP, say so
+in the step name â€” `search_listings (via MCP)` is enough.
+"""
+
+import config
+
+_lines: list[str] = []
+_step_number = 0
+
+
+def start_trace() -> None:
+    """Clear the trace. Call this at the start of each run."""
+    global _step_number
+    _lines.clear()
+    _step_number = 0
+
+
+def step(name: str, inputs=None, returned=None, note: str = "") -> None:
+    """
+    Record one step of the loop.
+
+    Args:
+        name:     what happened â€” usually a tool name.
+        inputs:   what went in. Anything printable.
+        returned: what came back. Shortened automatically, so passing a long
+                  list of listings is fine.
+        note:     an optional word on why, e.g. "branch: empty, stopping".
+    """
+    global _step_number
+    _step_number += 1
+
+    line = f"[{_step_number}] {name}"
+    if inputs is not None:
+        line += f"\n      in:  {_short(inputs)}"
+    if returned is not None:
+        line += f"\n      out: {_short(returned)}"
+    if note:
+        line += f"\n      â†’    {note}"
+
+    _lines.append(line)
+    print(line, flush=True)
+
+
+def get_trace() -> str:
+    """The whole trace as text, ready to paste into your README."""
+    return "\n".join(_lines)
+
+
+def _short(value, limit: int = 110) -> str:
+    """Keep the trace readable. A 40-item list of dicts is not readable."""
+    if isinstance(value, list):
+        if not value:
+            return "[] (empty)"
+        head = value[0]
+        if isinstance(head, dict) and "title" in head:
+            titles = ", ".join(str(v.get("title", "?")) for v in value[:3])
+            more = f" â€¦ +{len(value) - 3} more" if len(value) > 3 else ""
+            return f"{len(value)} items: {titles}{more}"
+        return f"{len(value)} items: {str(head)[:60]}â€¦"
+
+    if isinstance(value, dict):
+        if "title" in value:
+            return f"{value.get('title')} (${value.get('price')}, {value.get('platform')})"
+        keys = ", ".join(list(value)[:6])
+        return f"dict with keys: {keys}"
+
+    text = str(value).replace("\n", " ")
+    return text if len(text) <= limit else text[:limit] + "â€¦"
+
+
+def check_iterations(count: int) -> None:
+    """
+    Stop condition. Raise if the loop has gone round too many times.
+
+    Your loop this unit is short enough that you may never hit this. Keep the
+    call anyway â€” a missing stop condition is the most common architectural
+    failure in production agents, and the habit is the point.
+    """
+    if count > config.MAX_ITERATIONS:
+        raise RuntimeError(
+            f"The loop ran {count} times, past MAX_ITERATIONS "
+            f"({config.MAX_ITERATIONS}) in config.py.\n"
+            f"That almost always means a branch isn't ending. Print the value "
+            f"your branch checks, on the line before the `if`."
+        )
+
+============================================================
+FILE: generate.py
+============================================================
+"""
+The one place FitFindr talks to the model.
+
+Two of your three tools call out to a service. Everything that does goes
+through `generate()` below.
+
+That matters more in unit 3 than it did in unit 1, because an agent run is
+several requests rather than one. A student iterating on a loop will cross the
+per-minute limit within a few minutes. Rather than three hundred people each
+writing their own pacing code, the pacing lives here, once.
+
+What this does for you:
+
+  â€¢ Paces requests so you stay under the per-minute limit, and says when it's
+    waiting. A pause is the limiter doing its job, not a hang.
+  â€¢ Reuses answers to prompts already sent, while you're building. Turned off
+    for evaluation runs.
+  â€¢ Stops if a session makes an unreasonable number of calls, rather than
+    silently draining your day's allowance. A runaway agent loop is the
+    classic way to do that.
+  â€¢ Retries when the service says you're going too fast.
+  â€¢ Returns a readable message when the model can't be reached, instead of a
+    stack trace. Unit 4 Milestone 2 has you trigger exactly that on purpose.
+  â€¢ Counts your calls and the tokens they used, so quota â€” and cost â€” are
+    numbers you can see rather than numbers you multiply off a pricing page.
+
+The model name and the temperature live in config.py, not here.
+"""
+
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+
+import config
+
+_call_times: list[float] = []
+_session_calls = 0
+_cache_hits = 0
+_prompt_tokens = 0
+_output_tokens = 0
+_client = None
+_budget_warned = False
+
+
+class QuotaGuard(Exception):
+    """Raised when a session blows through its request budget."""
+
+
+class ModelUnavailable(Exception):
+    """
+    Raised when the model can't be reached at all â€” a bad key, no network, a
+    model name that doesn't resolve.
+
+    This exists so your agent can catch one specific thing and say something
+    useful, instead of showing a user a stack trace. Unit 4 Milestone 2 has you
+    trigger it deliberately by changing one character of your key.
+    """
+
+
+# â”€â”€â”€ Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+def _cache_key(prompt: str, system: str | None, temperature: float) -> str:
+    blob = json.dumps(
+        [config.MODEL, system or "", prompt, temperature], sort_keys=True
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+
+
+def _cache_read(key: str) -> str | None:
+    path = config.CACHE_DIR / f"{key}.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))["response"]
+    except Exception:
+        return None
+
+
+def _cache_write(key: str, response: str) -> None:
+    config.CACHE_DIR.mkdir(exist_ok=True)
+    path = config.CACHE_DIR / f"{key}.json"
+    path.write_text(json.dumps({"response": response}), encoding="utf-8")
+
+
+def clear_cache() -> int:
+    """Delete every cached response. Returns how many were removed."""
+    if not config.CACHE_DIR.exists():
+        return 0
+    files = list(config.CACHE_DIR.glob("*.json"))
+    for f in files:
+        f.unlink()
+    return len(files)
+
+
+# â”€â”€â”€ Pacing and guards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+def _wait_for_slot() -> None:
+    """Sleep, if we've used up this minute's allowance."""
+    now = time.monotonic()
+    _call_times[:] = [t for t in _call_times if now - t < 60.0]
+
+    if len(_call_times) < config.REQUESTS_PER_MINUTE:
+        return
+
+    sleep_for = 60.0 - (now - _call_times[0]) + 0.1
+    if sleep_for > 0:
+        # Only worth announcing if it's long enough to notice. Otherwise the
+        # message reads "Waiting 0s", which looks like something went wrong.
+        if sleep_for >= 1.0:
+            print(
+                f"  [rate limit] {config.REQUESTS_PER_MINUTE} requests used this "
+                f"minute. Waiting {sleep_for:.0f}s. This is normal.",
+                file=sys.stderr,
+                flush=True,
+            )
+        time.sleep(sleep_for)
+        _call_times[:] = [t for t in _call_times if time.monotonic() - t < 60.0]
+
+
+def _check_budget() -> None:
+    global _budget_warned
+    if _session_calls < config.SESSION_REQUEST_BUDGET:
+        return
+    if not _budget_warned:
+        _budget_warned = True
+    raise QuotaGuard(
+        f"This session has made {_session_calls} requests, which is the "
+        f"budget set in config.py (SESSION_REQUEST_BUDGET).\n"
+        f"That usually means a loop is running away rather than that you've "
+        f"done {_session_calls} requests' worth of real work.\n"
+        f"Stop the program and look for the loop. If you really do need more, "
+        f"raise the number in config.py â€” but look first."
+    )
+
+
+def usage() -> str:
+    """One line on what this session has spent. Printed by app.py on exit."""
+    tokens = ""
+    if _prompt_tokens or _output_tokens:
+        tokens = (
+            f", {_prompt_tokens} prompt + {_output_tokens} output tokens"
+        )
+    return (
+        f"{_session_calls} model calls this session"
+        f"{f', {_cache_hits} served from cache' if _cache_hits else ''}"
+        f"{tokens}"
+    )
+
+
+def call_count() -> int:
+    return _session_calls
+
+
+def token_counts() -> dict:
+    """
+    What this session actually spent, in tokens, as reported by the service.
+
+    Here's why this exists: a number off the pricing page is an estimate of
+    what a run like yours might cost. This is what your run did cost. When you
+    write down the cost of one agent run, take it from here.
+
+    Cached answers cost nothing and so add nothing â€” if you want the real
+    per-run numbers, run with the cache off.
+    """
+    return {
+        "prompt": _prompt_tokens,
+        "output": _output_tokens,
+        "total": _prompt_tokens + _output_tokens,
+    }
+
+
+def _record_tokens(response) -> None:
+    """
+    Add one response's token counts to the session total.
+
+    The service reports them on `response.usage_metadata`. It is allowed to
+    report nothing, or half of it â€” and a missing count is never a good enough
+    reason to kill a run that already succeeded, so anything unexpected here is
+    dropped rather than raised.
+    """
+    global _prompt_tokens, _output_tokens
+    try:
+        meta = getattr(response, "usage_metadata", None)
+        if meta is None:
+            return
+        prompt = getattr(meta, "prompt_token_count", None)
+        output = getattr(meta, "candidates_token_count", None)
+        if isinstance(prompt, int):
+            _prompt_tokens += prompt
+        if isinstance(output, int):
+            _output_tokens += output
+    except Exception:  # noqa: BLE001 â€” counting must never break a working call
+        pass
+
+
+# â”€â”€â”€ The call â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+def _explain(exc: Exception) -> str:
+    """Turn a provider exception into something a person can act on."""
+    message = str(exc).lower()
+    if "api key" in message or "api_key" in message or "unauthenticated" in message:
+        return (
+            "The model rejected your API key. Check GEMINI_API_KEY in your .env "
+            "file, or create a fresh key at aistudio.google.com."
+        )
+    if "not found" in message or "404" in message:
+        return (
+            f"The model name '{config.MODEL}' did not resolve. If you changed "
+            f"AI201_MODEL in your .env, put it back. Otherwise post in the help "
+            f"channel â€” this is not something you caused."
+        )
+    if "connection" in message or "timeout" in message or "network" in message:
+        return "Couldn't reach the model. Check your internet connection and try again."
+    return f"Couldn't reach the model: {exc}"
+
+
+def _retry_delay(exc: Exception, attempt: int) -> float:
+    """
+    How long to wait before retrying a call the service pushed back on.
+
+    When you cross the per-minute limit, the service usually says how long it
+    wants you to wait â€” "Please retry in 29.7s", or a retryDelay field. Honour
+    that, because the limit is per *minute* and a 1-2-4-8 backoff gives up
+    about fifteen seconds in, well before the minute is over. That's the
+    difference between a run that pauses and a run that dies.
+
+    Falls back to exponential backoff when the service doesn't say.
+    """
+    text = str(exc)
+    match = (
+        re.search(r"retry in (\d+(?:\.\d+)?)\s*s", text, re.I)
+        or re.search(r"retryDelay['\"]?\s*:\s*['\"](\d+(?:\.\d+)?)s", text)
+    )
+    hinted = float(match.group(1)) + 1.0 if match else 0.0
+    return min(65.0, max(2.0 ** attempt, hinted))
+
+
+def _get_client():
+    global _client
+    if _client is None:
+        from google import genai
+
+        key = os.getenv("GEMINI_API_KEY", "").strip()
+        if not key:
+            raise RuntimeError(
+                "No GEMINI_API_KEY found.\n"
+                "Copy .env.example to .env and paste your key in, then try "
+                "again. `python test.py` will confirm it's working."
+            )
+        _client = genai.Client(api_key=key)
+    return _client
+
+
+def generate(
+    prompt: str,
+    system: str | None = None,
+    cache: bool = True,
+    temperature: float | None = None,
+) -> str:
+    """
+    Send a prompt and get text back.
+
+    Args:
+        prompt: what you're asking.
+        system: an optional instruction about how to behave. This is the
+                agent's control surface â€” when to do what, and what to do with
+                nothing. Not a personality setting.
+        cache:  reuse an identical earlier answer if there is one. Leave this
+                True while building. Pass False when you're evaluating â€” five
+                tries of the same input have to be five real answers.
+        temperature: how much the model varies between runs. Defaults to
+                config.TEMPERATURE. Pass 0.0 when you want the same answer
+                every time.
+
+    Every call in this course goes through here. If you need to change how the
+    model is called, change it in this one place.
+    """
+    global _session_calls, _cache_hits
+
+    use_cache = cache and config.CACHE_ENABLED
+    temperature = config.TEMPERATURE if temperature is None else temperature
+    key = _cache_key(prompt, system, temperature)
+
+    if use_cache:
+        hit = _cache_read(key)
+        if hit is not None:
+            _cache_hits += 1
+            return hit
+
+    _check_budget()
+
+    last_error: Exception | None = None
+    for attempt in range(config.MAX_RETRIES):
+        _wait_for_slot()
+        try:
+            client = _get_client()
+            _call_times.append(time.monotonic())
+            _session_calls += 1
+
+            call_config = {"temperature": temperature}
+            if system:
+                call_config["system_instruction"] = system
+            kwargs = {
+                "model": config.MODEL,
+                "contents": prompt,
+                "config": call_config,
+            }
+
+            response = client.models.generate_content(**kwargs)
+            _record_tokens(response)
+            text = (response.text or "").strip()
+
+            if use_cache:
+                _cache_write(key, text)
+            return text
+
+        except Exception as exc:  # noqa: BLE001 â€” surfaced below
+            last_error = exc
+            message = str(exc).lower()
+            rate_limited = (
+                "429" in message
+                or "resource" in message and "exhaust" in message
+                or "rate" in message and "limit" in message
+            )
+            if not rate_limited:
+                raise ModelUnavailable(_explain(exc)) from exc
+            backoff = _retry_delay(exc, attempt)
+            print(
+                f"  [rate limit] service pushed back. Waiting {backoff:.0f}s "
+                f"(attempt {attempt + 1} of {config.MAX_RETRIES}). This is "
+                f"the limiter doing its job, not a bug.",
+                file=sys.stderr,
+                flush=True,
+            )
+            time.sleep(backoff)
+
+    raise RuntimeError(
+        f"Still rate limited after {config.MAX_RETRIES} attempts. Wait a "
+        f"minute and try again â€” your key is fine.\nLast error: {last_error}"
+    )
+
+============================================================
+FILE: config.py
+============================================================
+"""
+Settings for FitFindr.
+
+Everything you're likely to change lives here, at the top, on purpose.
+
+Two of these come up in the brief by name. If your fit cards come out
+word-for-word identical every time, it is one of the two things below â€”
+either the cache handed back an answer it already had, or TEMPERATURE is 0.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).parent
+load_dotenv(ROOT / ".env")
+
+
+# â”€â”€â”€ Windows console encoding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# You should not need to touch this.
+#
+# On Windows the console defaults to cp1252, which cannot represent emoji. The
+# model puts emoji in fit cards all the time â€” it is writing captions, after
+# all â€” so printing one would crash the program with a UnicodeEncodeError,
+# after the model call had already been paid for. Every entry point imports
+# config, so fixing it here fixes it everywhere.
+
+if sys.platform == "win32":
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+# â”€â”€â”€ The two settings the brief tells you about â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+# How much the model varies between runs. 0.0 gives you the same words every
+# time; higher gives you more variation. Fit cards want variation â€” a caption
+# that reads identically for two different items isn't a caption, it's a
+# template.
+TEMPERATURE = 0.9
+
+# While you're building, identical prompts reuse the answer already received,
+# so re-running the same query twenty times while debugging costs one call.
+# Evaluation runs turn this off automatically â€” five tries have to be five
+# real answers. `run_eval.py` handles that for you.
+CACHE_ENABLED = os.getenv("AI201_CACHE", "1") != "0"
+
+
+# â”€â”€â”€ The agent loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+# The most common architectural failure in production agents is a missing stop
+# condition â€” the loop runs forever, burning quota with nothing to show for it.
+# Your loop this unit is short enough that you may never hit this. Keep it
+# anyway; it's the habit that matters.
+MAX_ITERATIONS = 10
+
+# How many search results to consider. The agent uses the first one.
+SEARCH_RESULT_LIMIT = 10
+
+
+# â”€â”€â”€ Model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+MODEL = os.getenv("AI201_MODEL", "gemini-3.5-flash-lite")
+
+
+# â”€â”€â”€ Rate limiting and quota guards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# You should not need to touch these.
+#
+# This is the heaviest pair in the course for call volume â€” one agent run is
+# several requests, because two of your three tools call the model. Iterating
+# quickly will cross the per-minute limit. The adapter paces you and says when
+# it's waiting; that pause is not a bug.
+#
+# REQUESTS_PER_MINUTE is 15 because that is the actual free-tier limit for
+# gemini-3.5-flash-lite â€” the API reports it as
+# GenerateRequestsPerMinutePerProjectPerModel-FreeTier, quotaValue 15. Raising
+# it does not buy you more quota; it just means you hit the limit at the
+# service instead of being paced here, and a paced wait is much cheaper than a
+# failed run. Two model calls per agent run means about seven runs a minute.
+
+REQUESTS_PER_MINUTE = 15
+SESSION_REQUEST_BUDGET = 300
+MAX_RETRIES = 5
+
+CACHE_DIR = ROOT / ".cache"
+
+
+# â”€â”€â”€ Paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+DATA_DIR = ROOT / "data"
+RESULTS_DIR = ROOT / "results"
+
+============================================================
+FILE: mcp_client.py
+============================================================
+"""
+Calling an MCP tool from your agent. â† UNIT 4
+
+This is the plumbing, and it's given to you. Connecting over stdio and turning
+the protocol's response back into a Python value is fiddly and it isn't the
+lesson. What *is* the lesson is on the other side, in `mcp_server.py`: writing
+a tool description and typed inputs that something other than your own code can
+read.
+
+Use it like this, in `run_agent()`:
+
+    from mcp_client import call_tool
+
+    results = call_tool("search_listings", {
+        "description": "graphic tee",
+        "max_price": 30,
+    })
+
+`results` comes back as the same list of dicts `search_listings` returned when
+you called it directly. **That's the promise: the call changes shape, the
+return value does not.** If it does change, that difference is information â€”
+usually it means your tool was returning something you hadn't noticed.
+
+Every call starts the server, asks, and stops it again. That's slower than
+holding a connection open and it is much easier to reason about, which is the
+right trade for one unit.
+"""
+
+import asyncio
+import json
+import sys
+from pathlib import Path
+
+SERVER = Path(__file__).parent / "mcp_server.py"
+
+
+class MCPError(RuntimeError):
+    """The server couldn't be reached, or it refused the call."""
+
+
+def call_tool(name: str, arguments: dict):
+    """
+    Call one tool on your MCP server and return what it returns.
+
+    Args:
+        name:      the tool name, exactly as registered in mcp_server.py.
+        arguments: a dict of the tool's inputs. The names and types have to
+                   match the registration â€” that's your Tool Inventory, now
+                   being enforced by something other than you.
+
+    Returns:
+        Whatever the tool returns, unwrapped back to its native Python shape.
+        A tool returning a list of dicts gives you a list of dicts.
+
+    Raises:
+        MCPError, with something readable in it.
+    """
+    try:
+        return asyncio.run(_call(name, arguments))
+    except MCPError:
+        raise
+    except Exception as exc:  # noqa: BLE001 â€” re-raised readably below
+        raise MCPError(
+            f"Couldn't call '{name}' over MCP: {exc}\n"
+            f"Check that mcp_server.py runs on its own first:\n"
+            f"    python mcp_server.py\n"
+            f"If it exits immediately with an error, fix that before coming back here."
+        ) from exc
+
+
+async def _call(name: str, arguments: dict):
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=[str(SERVER)],
+    )
+
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            available = {t.name for t in (await session.list_tools()).tools}
+            if name not in available:
+                raise MCPError(
+                    f"The server doesn't offer a tool called '{name}'.\n"
+                    f"It offers: {', '.join(sorted(available)) or '(nothing yet)'}\n"
+                    f"Register your tool in mcp_server.py â€” that's Milestone 1."
+                )
+
+            result = await session.call_tool(name, arguments)
+
+            if getattr(result, "isError", False):
+                raise MCPError(f"The tool '{name}' returned an error: {_text(result)}")
+
+            return _unwrap(result)
+
+
+def _unwrap(result):
+    """
+    Turn an MCP response back into the value the tool actually returned.
+
+    MCP hands back content blocks rather than Python objects, so a tool that
+    returned a list of dicts arrives as text containing JSON. This puts it
+    back. Without this step your agent would start seeing strings where it used
+    to see lists, and every downstream branch would quietly stop working.
+    """
+    structured = getattr(result, "structuredContent", None)
+    if isinstance(structured, dict):
+        # FastMCP wraps a bare (non-dict) return value under "result".
+        if set(structured) == {"result"}:
+            return structured["result"]
+        return structured
+
+    text = _text(result)
+    if text == "":
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
+def _type_of(spec: dict) -> str:
+    """Read a type out of a JSON schema entry, including optional ones."""
+    if "type" in spec:
+        return spec["type"]
+    options = spec.get("anyOf") or spec.get("oneOf") or []
+    names = [o.get("type") for o in options if o.get("type") and o.get("type") != "null"]
+    return " or ".join(names) if names else "?"
+
+
+def _text(result) -> str:
+    parts = []
+    for block in getattr(result, "content", []) or []:
+        value = getattr(block, "text", None)
+        if value:
+            parts.append(value)
+    return "\n".join(parts).strip()
+
+
+# â”€â”€ check it works â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+if __name__ == "__main__":
+    print("Asking mcp_server.py what it offersâ€¦\n")
+
+    async def _list():
+        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        params = StdioServerParameters(command=sys.executable, args=[str(SERVER)])
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                return (await session.list_tools()).tools
+
+    try:
+        tools = asyncio.run(_list())
+    except Exception as exc:  # noqa: BLE001
+        print(f"Couldn't reach the server: {exc}")
+        sys.exit(1)
+
+    if not tools:
+        print("The server is running but offers no tools yet.")
+        print("Register one in mcp_server.py â€” that's Milestone 1.")
+        sys.exit(0)
+
+    for tool in tools:
+        print(f"  {tool.name}")
+        print(f"    {tool.description or '(no description â€” write one)'}")
+        schema = tool.inputSchema or {}
+        required = set(schema.get("required", []))
+        for key, spec in schema.get("properties", {}).items():
+            kind = _type_of(spec)
+            mark = "" if key in required else "  (optional)"
+            print(f"    - {key}: {kind}{mark}")
+        print()
+
