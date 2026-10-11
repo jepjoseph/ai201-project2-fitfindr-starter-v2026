@@ -76,14 +76,17 @@ def search_listings(
     max_price: float | None = None,
 ) -> list[dict]:
     """
-    <-- Search clothing listings by keyword overlap.
+    Search clothing listings using all supplied keywords.
 
-    description: Clothing description or search keywords.
+    Every description keyword must appear in the listing's title or
+    style tags. Description-only mentions do not qualify.
+
+    description: Clothing search keywords.
     size: Optional size constraint, such as M or 8.
     max_price: Optional inclusive price ceiling in US dollars.
 
-    Returns matching listing dictionaries ranked by keyword overlap.
-    Returns an empty list when no listings match.
+    Returns complete listing dictionaries, limited by SEARCH_RESULT_LIMIT.
+    Ties preserve dataset order. Returns [] when nothing matches.
     """
     return _search_listings_impl(description, size, max_price)
 

@@ -242,7 +242,8 @@ directly as UTF-8 and display the character correctly.
 
 The search returned six listings. All seven filter checks passed.
 Keyword overlap also returned items that mention tees without being tees;
-this remains a limitation of the search.
+This was a limitation of the Unit 3 search. The Unit 4 improvement below
+removed these distractors for the fixed test query.
 
 The empty-wardrobe test returned general advice without claiming the user
 owned the suggested pieces. Three uncached caption calls produced different
@@ -267,6 +268,18 @@ Additional output:
 
      "I gave Claude my search_listings spec. It returned None on no match
      instead of an empty list, so I changed it" is the level we want. -->
+
+**Unit 4**
+
+I asked ChatGPT to review my committed criteria against the starter
+evaluation. It identified missing evidence for dictionary transfer,
+fixed-input captions, and price filtering. I added those measurements
+without changing the targets.
+
+ChatGPT initially proposed a replacement that omitted the empty-wardrobe
+diagnostic. I questioned the scope, restored that scenario, and retained
+the starter's report format. I then used the recorded results to check
+verdicts and measure one search-policy change.
 
 **Moment 1**
 
@@ -380,6 +393,9 @@ description. This does not replace my original price criterion.
      the same length, your branch isn't working — and this is the fastest way
      anyone will ever find that out. -->
 
+These traces were captured before the search improvement. Their result
+counts reflect the original search policy.
+
 I registered `search_listings` in `mcp_server.py` and changed the search stage
 in `agent.py::run_agent` to use `mcp_client.call_tool`. The client discovered
 the tool and its input schema. The matching query still selected the $18
@@ -395,6 +411,16 @@ Checkpoint evidence:
 - [Tool discovery](results/unit4_mcp_discovery.txt)
 - [Matching query](results/unit4_mcp_happy.txt)
 - [Empty search](results/unit4_mcp_empty.txt)
+
+Failure checks were traced by `agent.py::run_agent` using `trace.py::step`.
+The invalid-key test changed only a child process's environment; `.env`
+was unchanged.
+
+- [Empty search](results/unit4_trace_empty_search.txt)
+- [Empty wardrobe](results/unit4_trace_empty_wardrobe.txt)
+- [Model unavailable](results/unit4_trace_model_unavailable.txt)
+
+I made no revisions to the original acceptance criteria.
 
 **Happy path**
 
@@ -531,7 +557,7 @@ Measured through MCP by `results/search_relevance_check.py`:
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
 
-     No original criterion remains missed. However, requiring every query word
+No original criterion remains missed. However, requiring every query word
 
 in the title or tags can reject relevant listings whose matching wording
 appears only in the description. Exact token matching also does not handle
